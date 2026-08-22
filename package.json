@@ -1,0 +1,22 @@
+{
+  "name": "money-plan",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "node --test packages/finance-engine/tests/allocation.test.ts",
+    "test:engine": "node --test packages/finance-engine/tests/allocation.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "typescript": "^5.9.3"
+  }
+}
+
