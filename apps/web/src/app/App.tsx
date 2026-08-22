@@ -187,8 +187,8 @@ export function App() {
   return (
     <div className="home-shell">
       <header className="site-header">
-        <a className="brand" href="/" aria-label="머니플랜 홈">
-          <img src="/money-plan-icon.svg" alt="" />
+        <a className="brand" href={import.meta.env.BASE_URL} aria-label="머니플랜 홈">
+          <img src={`${import.meta.env.BASE_URL}money-plan-icon.svg`} alt="" />
           <span>머니플랜</span>
         </a>
         <span className="local-badge">기기 안에만 저장</span>

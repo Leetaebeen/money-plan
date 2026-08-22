@@ -38,6 +38,16 @@ npm test
 
 월급·지출·목표 데이터와 사용자가 저장한 시나리오는 브라우저 IndexedDB에만 저장합니다. 회원가입과 서버 전송은 아직 사용하지 않습니다.
 
+## 무료 배포
+
+`main` 브랜치의 CI 검증이 끝나면 GitHub Pages용 PWA를 빌드하고 자동 배포합니다.
+
+- 공개 주소: <https://leetaebeen.github.io/money-plan/>
+- 배포 빌드: `npm run build:pages`
+- 배포 산출물 검사: `npm run check:pages`
+
+첫 배포 전에 저장소의 `Settings` → `Pages` → `Build and deployment`에서 `Source`를 `GitHub Actions`로 한 번 선택해야 할 수 있습니다. API 키는 필요하지 않습니다.
+
 ## 다음 단계
 
 1. 공개 계산기 정적 페이지 구현

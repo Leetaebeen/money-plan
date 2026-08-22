@@ -16,11 +16,12 @@ export default defineConfig({
         theme_color: "#173f36",
         background_color: "#f5f3ed",
         display: "standalone",
-        start_url: "/",
+        start_url: "./",
+        scope: "./",
         lang: "ko-KR",
         icons: [
           {
-            src: "/money-plan-icon.svg",
+            src: "money-plan-icon.svg",
             sizes: "any",
             type: "image/svg+xml",
             purpose: "any maskable",
