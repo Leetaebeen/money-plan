@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="머니플랜">
+  <rect width="512" height="512" rx="128" fill="#173f36"/>
+  <path d="M132 292c0-83 55-145 128-145s120 53 120 126c0 82-54 133-128 133-68 0-120-45-120-114Z" fill="#f5f3ed"/>
+  <path d="M257 120c2 42-22 70-64 79 2-42 23-69 64-79Z" fill="#9bc5a9"/>
+  <path d="M256 191v160M210 230h65c29 0 48 14 48 37s-19 36-48 36h-65M299 230l-23 121" fill="none" stroke="#173f36" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

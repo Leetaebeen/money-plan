@@ -4,19 +4,22 @@
   "private": true,
   "type": "module",
   "workspaces": [
+    "apps/*",
     "packages/*"
   ],
   "engines": {
     "node": ">=24"
   },
   "scripts": {
-    "check": "npm run security:check && npm run typecheck && npm test",
+    "build:web": "npm run build --workspace @money-plan/web",
+    "check": "npm run security:check && npm run typecheck && npm test && npm run build:web",
     "commit:check": "node scripts/validate-commit-msg.cjs",
+    "dev:web": "npm run dev --workspace @money-plan/web",
     "security:check": "node scripts/security-check.cjs",
     "setup:git": "node scripts/setup-git.cjs",
-    "test": "node --test packages/finance-engine/tests/allocation.test.ts",
+    "test": "node --test packages/finance-engine/tests/allocation.test.ts apps/web/tests/plan-form.test.ts",
     "test:engine": "node --test packages/finance-engine/tests/allocation.test.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && npm run typecheck --workspace @money-plan/web"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
