@@ -10,6 +10,10 @@
     "node": ">=24"
   },
   "scripts": {
+    "check": "npm run security:check && npm run typecheck && npm test",
+    "commit:check": "node scripts/validate-commit-msg.cjs",
+    "security:check": "node scripts/security-check.cjs",
+    "setup:git": "node scripts/setup-git.cjs",
     "test": "node --test packages/finance-engine/tests/allocation.test.ts",
     "test:engine": "node --test packages/finance-engine/tests/allocation.test.ts",
     "typecheck": "tsc --noEmit"
@@ -19,4 +23,3 @@
     "typescript": "^5.9.3"
   }
 }
-
