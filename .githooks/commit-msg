@@ -1,0 +1,10 @@
+#!/bin/sh
+
+repo_root="$(git rev-parse --show-toplevel)" || exit 1
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "커밋 검사 실패: Node.js를 PATH에서 찾을 수 없습니다." >&2
+  exit 1
+fi
+
+exec node "$repo_root/scripts/validate-commit-msg.cjs" "$1"
