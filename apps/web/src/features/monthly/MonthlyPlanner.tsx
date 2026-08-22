@@ -1,5 +1,5 @@
 import { calculateAllocationPlans, type AllocationResult, type MonthlyPlanInput } from "@money-plan/finance-engine";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { GoalEditor } from "../../components/GoalEditor";
 import { MoneyField } from "../../components/MoneyField";
 import { StepIndicator } from "../../components/StepIndicator";
@@ -35,12 +35,17 @@ const stepFields: readonly (readonly string[])[] = [
 interface MonthlyPlannerProps {
   initialProfile?: ProfileDraft;
   initialDraft?: MonthlyFormDraft;
-  onCancel: () => void;
+  initialStep?: number;
+  restoredDraft?: boolean;
+  storageError?: string | null;
+  onDraftChange: (draft: MonthlyFormDraft, step: number) => void;
+  onCancel: (draft: MonthlyFormDraft, step: number, changed: boolean) => Promise<void>;
   onCalculated: (
     input: MonthlyPlanInput,
     result: AllocationResult,
     draft: MonthlyFormDraft,
-  ) => void;
+    step: number,
+  ) => Promise<void>;
 }
 
 function belongsToStep(path: string, step: number): boolean {
@@ -52,12 +57,45 @@ function stepForError(path: string): number {
   return found === -1 ? stepLabels.length - 1 : found;
 }
 
-export function MonthlyPlanner({ initialProfile, initialDraft, onCancel, onCalculated }: MonthlyPlannerProps) {
-  const [step, setStep] = useState(0);
+export function MonthlyPlanner({
+  initialProfile,
+  initialDraft,
+  initialStep,
+  restoredDraft = false,
+  storageError,
+  onDraftChange,
+  onCancel,
+  onCalculated,
+}: MonthlyPlannerProps) {
+  const [step, setStep] = useState(() => Math.max(0, Math.min(3, initialStep ?? 0)));
   const [draft, setDraft] = useState<MonthlyFormDraft>(() =>
     initialDraft ? structuredClone(initialDraft) : createEmptyMonthlyDraft(initialProfile),
   );
   const [errors, setErrors] = useState<FormErrors>({});
+  const [submitting, setSubmitting] = useState(false);
+  const restoredAtStart = useRef(restoredDraft).current;
+  const draftSignature = JSON.stringify({ draft, step });
+  const lastNotifiedSignature = useRef(draftSignature);
+  const changedSinceMount = useRef(false);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const previousStep = useRef(step);
+  const focusedRestoredStep = useRef(false);
+
+  useEffect(() => {
+    if (draftSignature === lastNotifiedSignature.current) return;
+    lastNotifiedSignature.current = draftSignature;
+    changedSinceMount.current = true;
+    onDraftChange(draft, step);
+  }, [draft, draftSignature, onDraftChange, step]);
+
+  useEffect(() => {
+    const stepChanged = previousStep.current !== step;
+    if (stepChanged || (restoredAtStart && !focusedRestoredStep.current)) {
+      headingRef.current?.focus();
+      focusedRestoredStep.current = true;
+    }
+    previousStep.current = step;
+  }, [restoredAtStart, step]);
 
   const corePreview = useMemo(() => {
     const values = [
@@ -90,7 +128,8 @@ export function MonthlyPlanner({ initialProfile, initialDraft, onCancel, onCalcu
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const calculate = () => {
+  const calculate = async () => {
+    if (submitting) return;
     const built = buildMonthlyInput(draft);
     if (!built.value) {
       setErrors(built.errors);
@@ -101,22 +140,45 @@ export function MonthlyPlanner({ initialProfile, initialDraft, onCancel, onCalcu
     }
 
     const result = calculateAllocationPlans(built.value);
-    onCalculated(built.value, result, draft);
+    setSubmitting(true);
+    try {
+      await onCalculated(built.value, result, draft, step);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const leavePlanner = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      await onCancel(draft, step, changedSinceMount.current);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
     <main className="planner-shell">
       <div className="planner-topbar">
-        <button className="icon-button" type="button" onClick={step === 0 ? onCancel : () => setStep((value) => value - 1)} aria-label="이전 화면">
+        <button className="icon-button" type="button" disabled={submitting} onClick={step === 0 ? () => void leavePlanner() : () => setStep((value) => value - 1)} aria-label="이전 화면">
           ←
         </button>
         <span>월급 계획 만들기</span>
-        <button className="text-button" type="button" onClick={onCancel}>나가기</button>
+        <button className="text-button" type="button" disabled={submitting} onClick={() => void leavePlanner()}>나가기</button>
       </div>
 
       <StepIndicator labels={stepLabels} current={step} />
 
-      <form className="planner-form" onSubmit={(event) => event.preventDefault()}>
+      <p className="draft-save-state">입력 변경 내용은 서버로 보내지 않고 이 브라우저에 자동 저장됩니다.</p>
+
+      {restoredAtStart ? (
+        <div className="draft-restored" role="status">작성 중이던 입력과 단계를 이 브라우저에서 복구했어요.</div>
+      ) : null}
+
+      <form className="planner-form" aria-busy={submitting} onSubmit={(event) => event.preventDefault()}>
+        <fieldset disabled={submitting}>
+        {storageError ? <div className="error-summary" role="alert"><p>{storageError}</p></div> : null}
         {Object.keys(errors).length > 0 ? (
           <div className="error-summary" role="alert">
             <strong>확인할 입력이 있어요.</strong>
@@ -127,7 +189,7 @@ export function MonthlyPlanner({ initialProfile, initialDraft, onCancel, onCalcu
         {step === 0 ? (
           <section className="form-section">
             <span className="eyebrow">STEP 1</span>
-            <h1>매달 실제로 받는 월급은 얼마인가요?</h1>
+            <h1 ref={headingRef} tabIndex={-1}>매달 실제로 받는 월급은 얼마인가요?</h1>
             <p className="section-lead">세금과 4대 보험을 뺀 뒤 통장에 들어오는 금액을 적어 주세요.</p>
             <MoneyField
               id="monthly-income"
@@ -148,7 +210,7 @@ export function MonthlyPlanner({ initialProfile, initialDraft, onCancel, onCalcu
         {step === 1 ? (
           <section className="form-section">
             <span className="eyebrow">STEP 2</span>
-            <h1>한 달에 꼭 나가는 돈을 알려주세요.</h1>
+            <h1 ref={headingRef} tabIndex={-1}>한 달에 꼭 나가는 돈을 알려주세요.</h1>
             <p className="section-lead">빈칸을 임의로 0원 처리하지 않아요. 없는 항목은 ‘없음 · 0원’을 눌러 주세요.</p>
 
             <MoneyField
@@ -213,7 +275,7 @@ export function MonthlyPlanner({ initialProfile, initialDraft, onCancel, onCalcu
         {step === 2 ? (
           <section className="form-section">
             <span className="eyebrow">STEP 3</span>
-            <h1>안전망과 장기목표 기준을 직접 정해 주세요.</h1>
+            <h1 ref={headingRef} tabIndex={-1}>안전망과 장기목표 기준을 직접 정해 주세요.</h1>
             <p className="section-lead">나이와 월급으로 자동 결정하지 않고, 선택한 기준만 계산에 사용합니다.</p>
 
             <MoneyField
@@ -272,7 +334,7 @@ export function MonthlyPlanner({ initialProfile, initialDraft, onCancel, onCalcu
         {step === 3 ? (
           <section className="form-section">
             <span className="eyebrow">STEP 4</span>
-            <h1>기간이 있는 목표가 있나요?</h1>
+            <h1 ref={headingRef} tabIndex={-1}>기간이 있는 목표가 있나요?</h1>
             <p className="section-lead">선택사항이에요. 목표 순서가 곧 배분 우선순위가 됩니다.</p>
             <GoalEditor
               goals={draft.profile.goals}
@@ -295,20 +357,21 @@ export function MonthlyPlanner({ initialProfile, initialDraft, onCancel, onCalcu
 
         <div className="sticky-actions">
           {step > 0 ? (
-            <button className="button button--secondary" type="button" onClick={() => setStep((value) => value - 1)}>
+            <button className="button button--secondary" type="button" disabled={submitting} onClick={() => setStep((value) => value - 1)}>
               이전
             </button>
           ) : null}
           {step < stepLabels.length - 1 ? (
-            <button className="button button--primary" type="button" onClick={goNext}>
+            <button className="button button--primary" type="button" disabled={submitting} onClick={goNext}>
               다음
             </button>
           ) : (
-            <button className="button button--primary" type="button" onClick={calculate}>
-              세 가지 시나리오 계산하기
+            <button className="button button--primary" type="button" disabled={submitting} onClick={() => void calculate()}>
+              {submitting ? "계산 준비 중…" : "세 가지 시나리오 계산하기"}
             </button>
           )}
         </div>
+        </fieldset>
       </form>
     </main>
   );

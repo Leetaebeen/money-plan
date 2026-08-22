@@ -18,6 +18,8 @@ interface ScenarioCardProps {
   input: AllocationInput;
   selected: boolean;
   saving: boolean;
+  selectionDisabled: boolean;
+  showSaveAction: boolean;
   onSelect: (scenarioId: ScenarioId) => void;
 }
 
@@ -34,6 +36,8 @@ export function ScenarioCard({
   input,
   selected,
   saving,
+  selectionDisabled,
+  showSaveAction,
   onSelect,
 }: ScenarioCardProps) {
   const goalNames = new Map(input.profile.goals.map((goal) => [goal.id, goal.label]));
@@ -105,14 +109,16 @@ export function ScenarioCard({
         </ul>
       ) : null}
 
-      <button
-        className={`button button--full ${selected ? "button--saved" : "button--primary"}`}
-        type="button"
-        disabled={saving}
-        onClick={() => onSelect(scenario.scenarioId)}
-      >
-        {saving ? "저장 중…" : selected ? "이 시나리오를 저장했어요" : "이 시나리오 저장"}
-      </button>
+      {showSaveAction ? (
+        <button
+          className={`button button--full ${selected ? "button--saved" : "button--primary"}`}
+          type="button"
+          disabled={selectionDisabled}
+          onClick={() => onSelect(scenario.scenarioId)}
+        >
+          {saving ? "저장 중…" : selected ? "이 시나리오를 저장했어요" : "이 시나리오 저장"}
+        </button>
+      ) : null}
     </article>
   );
 }
