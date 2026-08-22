@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   AllocationInput,
   AllocationResult,
@@ -16,6 +16,9 @@ interface PlanResultsProps {
   input: AllocationInput;
   result: AllocationResult;
   selectedScenarioId: ScenarioId | null;
+  readOnly?: boolean;
+  savedAt?: string;
+  storageError?: string | null;
   onBack: () => void;
   onHome: () => void;
   onSelectScenario: (scenarioId: ScenarioId) => Promise<void>;
@@ -25,15 +28,26 @@ export function PlanResults({
   input,
   result,
   selectedScenarioId,
+  readOnly = false,
+  savedAt,
+  storageError,
   onBack,
   onHome,
   onSelectScenario,
 }: PlanResultsProps) {
   const [savingScenarioId, setSavingScenarioId] = useState<ScenarioId | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const savingRef = useRef(false);
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const derived = result.derived;
 
+  useEffect(() => {
+    headingRef.current?.focus();
+  }, []);
+
   const selectScenario = async (scenarioId: ScenarioId) => {
+    if (readOnly || savingRef.current || selectedScenarioId === scenarioId) return;
+    savingRef.current = true;
     setSavingScenarioId(scenarioId);
     setSaveError(null);
     try {
@@ -41,23 +55,35 @@ export function PlanResults({
     } catch {
       setSaveError("계획을 기기에 저장하지 못했어요. 브라우저 저장공간을 확인해 주세요.");
     } finally {
+      savingRef.current = false;
       setSavingScenarioId(null);
     }
   };
 
   return (
-    <main className="results-shell">
+    <main className="results-shell" aria-busy={savingScenarioId !== null}>
       <div className="planner-topbar results-topbar">
-        <button className="icon-button" type="button" onClick={onBack} aria-label="입력 화면으로 돌아가기">←</button>
-        <span>계산 결과</span>
-        <button className="text-button" type="button" onClick={onHome}>홈</button>
+        <button className="icon-button" type="button" disabled={savingScenarioId !== null} onClick={onBack} aria-label={readOnly ? "홈으로 돌아가기" : "입력 화면으로 돌아가기"}>←</button>
+        <span>{readOnly ? "저장한 계획" : "계산 결과"}</span>
+        <button className="text-button" type="button" disabled={savingScenarioId !== null} onClick={onHome}>홈</button>
       </div>
 
       <section className="results-hero">
-        <span className="eyebrow">{result.asOf} 기준 · 규칙 {result.ruleVersion}</span>
-        <h1>{input.mode === "MONTHLY_SALARY" ? "이번 달 돈의 순서를 확인해 보세요." : "이번 여윳돈의 세 가지 배분안이에요."}</h1>
-        <p>아직 어떤 안도 자동으로 선택하지 않았어요. 금액과 이유를 비교한 뒤 직접 저장하세요.</p>
+        <span className="eyebrow">
+          {result.asOf} 기준 · 규칙 {result.ruleVersion}
+          {readOnly && savedAt ? <> · <time dateTime={savedAt}>{new Date(savedAt).toLocaleString("ko-KR")} 저장</time></> : null}
+        </span>
+        <h1 ref={headingRef} tabIndex={-1}>{readOnly
+          ? "저장 당시의 계산과 선택을 다시 확인하세요."
+          : input.mode === "MONTHLY_SALARY"
+            ? "이번 달 돈의 순서를 확인해 보세요."
+            : "이번 여윳돈의 세 가지 배분안이에요."}</h1>
+        <p>{readOnly
+          ? "새 규칙으로 다시 계산하지 않고 저장 당시 결과를 그대로 보여드려요."
+          : "아직 어떤 안도 자동으로 선택하지 않았어요. 금액과 이유를 비교한 뒤 직접 저장하세요."}</p>
       </section>
+
+      {storageError ? <div className="error-summary results-storage-error" role="alert"><p>{storageError}</p></div> : null}
 
       {derived ? (
         <section className="calculation-card" aria-labelledby="calculation-title">
@@ -148,6 +174,8 @@ export function PlanResults({
                 input={input}
                 selected={selectedScenarioId === scenario.scenarioId}
                 saving={savingScenarioId === scenario.scenarioId}
+                selectionDisabled={savingScenarioId !== null || selectedScenarioId === scenario.scenarioId}
+                showSaveAction={!readOnly}
                 onSelect={(scenarioId) => void selectScenario(scenarioId)}
               />
             ))}

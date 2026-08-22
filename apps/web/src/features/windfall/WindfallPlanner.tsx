@@ -1,5 +1,5 @@
 import { calculateAllocationPlans, type AllocationResult, type WindfallPlanInput } from "@money-plan/finance-engine";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { MoneyField } from "../../components/MoneyField";
 import {
   buildWindfallInput,
@@ -14,40 +14,87 @@ import {
 interface WindfallPlannerProps {
   profile: ProfileDraft;
   initialDraft?: WindfallFormDraft;
-  onCancel: () => void;
+  restoredDraft?: boolean;
+  storageError?: string | null;
+  onDraftChange: (draft: WindfallFormDraft) => void;
+  onCancel: (draft: WindfallFormDraft, changed: boolean) => Promise<void>;
   onCalculated: (
     input: WindfallPlanInput,
     result: AllocationResult,
     draft: WindfallFormDraft,
-  ) => void;
+  ) => Promise<void>;
 }
 
-export function WindfallPlanner({ profile, initialDraft, onCancel, onCalculated }: WindfallPlannerProps) {
+export function WindfallPlanner({
+  profile,
+  initialDraft,
+  restoredDraft = false,
+  storageError,
+  onDraftChange,
+  onCancel,
+  onCalculated,
+}: WindfallPlannerProps) {
   const [draft, setDraft] = useState<WindfallFormDraft>(() =>
     initialDraft ? structuredClone(initialDraft) : createEmptyWindfallDraft(),
   );
   const [errors, setErrors] = useState<FormErrors>({});
+  const [submitting, setSubmitting] = useState(false);
+  const restoredAtStart = useRef(restoredDraft).current;
+  const draftSignature = JSON.stringify(draft);
+  const lastNotifiedSignature = useRef(draftSignature);
+  const changedSinceMount = useRef(false);
   const structuralDeficitWon = useMemo(() => monthlyStructuralDeficitWon(profile), [profile]);
 
-  const calculate = () => {
+  useEffect(() => {
+    if (draftSignature === lastNotifiedSignature.current) return;
+    lastNotifiedSignature.current = draftSignature;
+    changedSinceMount.current = true;
+    onDraftChange(draft);
+  }, [draft, draftSignature, onDraftChange]);
+
+  const calculate = async () => {
+    if (submitting) return;
     const built = buildWindfallInput(profile, draft);
     if (!built.value) {
       setErrors(built.errors);
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
-    onCalculated(built.value, calculateAllocationPlans(built.value), draft);
+    setSubmitting(true);
+    try {
+      await onCalculated(built.value, calculateAllocationPlans(built.value), draft);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const leavePlanner = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      await onCancel(draft, changedSinceMount.current);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
     <main className="planner-shell">
       <div className="planner-topbar">
-        <button className="icon-button" type="button" onClick={onCancel} aria-label="홈으로 돌아가기">←</button>
+        <button className="icon-button" type="button" disabled={submitting} onClick={() => void leavePlanner()} aria-label="홈으로 돌아가기">←</button>
         <span>여윳돈 나누기</span>
-        <button className="text-button" type="button" onClick={onCancel}>나가기</button>
+        <button className="text-button" type="button" disabled={submitting} onClick={() => void leavePlanner()}>나가기</button>
       </div>
 
-      <form className="planner-form" onSubmit={(event) => event.preventDefault()}>
+      <p className="draft-save-state">입력 변경 내용은 서버로 보내지 않고 이 브라우저에 자동 저장됩니다.</p>
+
+      {restoredAtStart ? (
+        <div className="draft-restored" role="status">작성 중이던 여윳돈 입력을 이 브라우저에서 복구했어요.</div>
+      ) : null}
+
+      <form className="planner-form" aria-busy={submitting} onSubmit={(event) => event.preventDefault()}>
+        <fieldset disabled={submitting}>
+        {storageError ? <div className="error-summary" role="alert"><p>{storageError}</p></div> : null}
         {Object.keys(errors).length > 0 ? (
           <div className="error-summary" role="alert">
             <strong>확인할 입력이 있어요.</strong>
@@ -142,9 +189,12 @@ export function WindfallPlanner({ profile, initialDraft, onCancel, onCalculated 
         </div>
 
         <div className="sticky-actions">
-          <button className="button button--secondary" type="button" onClick={onCancel}>취소</button>
-          <button className="button button--primary" type="button" onClick={calculate}>세 가지 시나리오 계산하기</button>
+          <button className="button button--secondary" type="button" disabled={submitting} onClick={() => void leavePlanner()}>취소</button>
+          <button className="button button--primary" type="button" disabled={submitting} onClick={() => void calculate()}>
+            {submitting ? "계산 준비 중…" : "세 가지 시나리오 계산하기"}
+          </button>
         </div>
+        </fieldset>
       </form>
     </main>
   );
