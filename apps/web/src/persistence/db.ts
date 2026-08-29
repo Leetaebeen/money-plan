@@ -650,6 +650,14 @@ export async function deletePlannerDraft(
   );
 }
 
+export async function loadPlanRuns(): Promise<StoredPlanRun[]> {
+  return db.planRuns.orderBy("createdAt").reverse().toArray();
+}
+
+export async function deletePlanRun(id: string): Promise<void> {
+  await db.planRuns.delete(id);
+}
+
 export async function loadLatestPlan(): Promise<StoredPlanRun | undefined> {
   return db.planRuns.orderBy("createdAt").last();
 }

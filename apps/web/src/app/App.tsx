@@ -20,8 +20,9 @@ import {
   ProfileConflictError,
   deleteAllLocalData,
   deletePlannerDraft,
+  deletePlanRun,
   exportLocalData,
-  loadLatestPlan,
+  loadPlanRuns,
   loadProfile,
   prepareMonthlyDraftContext,
   preparePlannerDraftSession,
@@ -83,6 +84,7 @@ export function App() {
   const [storageError, setStorageError] = useState<string | null>(null);
   const [storedProfile, setStoredProfile] = useState<StoredProfile | undefined>();
   const [latestPlan, setLatestPlan] = useState<StoredPlanRun | undefined>();
+  const [planRuns, setPlanRuns] = useState<StoredPlanRun[]>([]);
   const [active, setActive] = useState<ActiveCalculation | null>(null);
   const [selectedScenarioId, setSelectedScenarioId] = useState<ScenarioId | null>(null);
   const [monthlyDraft, setMonthlyDraft] = useState<StoredMonthlyDraft | undefined>();
@@ -114,7 +116,7 @@ export function App() {
     let mounted = true;
     void Promise.allSettled([
       loadProfile(),
-      loadLatestPlan(),
+      loadPlanRuns(),
       preparePlannerDraftSession("monthly"),
       preparePlannerDraftSession("windfall"),
     ]).then((results) => {
@@ -123,7 +125,10 @@ export function App() {
       const profile = profileResult.status === "fulfilled" ? profileResult.value : undefined;
 
       setStoredProfile(profile);
-      if (planResult.status === "fulfilled") setLatestPlan(planResult.value);
+      if (planResult.status === "fulfilled") {
+        setPlanRuns(planResult.value);
+        setLatestPlan(planResult.value[0]);
+      }
       if (monthlyResult.status === "fulfilled") {
         monthlyReferenceRef.current = monthlyResult.value.reference;
         if (monthlyResult.value.draft?.id === "monthly") {
@@ -423,6 +428,7 @@ export function App() {
       throw error;
     }
     setLatestPlan(outcome.run);
+    setPlanRuns((current) => [outcome.run, ...current]);
     setSelectedScenarioId(scenarioId);
     const reconcile = active.draftReference.id === "monthly"
       ? reconcileMonthlyDraft
@@ -432,24 +438,40 @@ export function App() {
     });
   };
 
-  const openLatestPlan = () => {
-    if (!latestPlan) return;
-    const selectedExists = latestPlan.result.scenarios.some(
-      (scenario) => scenario.scenarioId === latestPlan.selectedScenarioId,
+  const openStoredPlan = (plan: StoredPlanRun) => {
+    const selectedExists = plan.result.scenarios.some(
+      (scenario) => scenario.scenarioId === plan.selectedScenarioId,
     );
     if (!selectedExists) {
-      setStorageError("최근 저장한 계획의 선택 내용을 확인하지 못했어요.");
+      setStorageError("저장한 계획의 선택 내용을 확인하지 못했어요.");
       return;
     }
-    setSelectedScenarioId(latestPlan.selectedScenarioId);
+    setSelectedScenarioId(plan.selectedScenarioId);
     setActive({
-      input: structuredClone(latestPlan.input),
-      result: structuredClone(latestPlan.result),
+      input: structuredClone(plan.input),
+      result: structuredClone(plan.result),
       source: "SAVED",
-      savedAt: latestPlan.createdAt,
+      savedAt: plan.createdAt,
     });
     setScreen("RESULT");
     window.scrollTo({ top: 0 });
+  };
+
+  const deleteStoredPlan = async (plan: StoredPlanRun) => {
+    if (dataBusyRef.current) return;
+    if (!window.confirm("이 저장 계획을 삭제할까요? 삭제 후에는 복구할 수 없습니다.")) return;
+    if (!beginDataOperation()) return;
+    try {
+      await deletePlanRun(plan.id);
+      const remaining = planRuns.filter((stored) => stored.id !== plan.id);
+      setPlanRuns(remaining);
+      setLatestPlan(remaining[0]);
+      setStorageError(null);
+    } catch {
+      setStorageError("저장 계획을 삭제하지 못했어요.");
+    } finally {
+      finishDataOperation();
+    }
   };
 
   const goHome = () => {
@@ -577,6 +599,7 @@ export function App() {
       await deleteAllLocalData();
       setStoredProfile(undefined);
       setLatestPlan(undefined);
+      setPlanRuns([]);
       await Promise.all([reconcileMonthlyDraft(), reconcileWindfallDraft()]);
       setStorageError(null);
     } catch {
@@ -731,7 +754,7 @@ export function App() {
                 )}
                 <div className="dashboard-card__actions">
                   {latestPlan ? (
-                    <button className="button button--light button--full" type="button" onClick={openLatestPlan} disabled={dataBusy}>저장한 계획 상세 보기</button>
+                    <button className="button button--light button--full" type="button" onClick={() => openStoredPlan(latestPlan)} disabled={dataBusy}>저장한 계획 상세 보기</button>
                   ) : null}
                   {storedProfile ? (
                     <button className="button button--light button--full" type="button" onClick={startWindfallPlan} disabled={dataBusy}>
@@ -741,6 +764,28 @@ export function App() {
                 </div>
               </article>
             </div>
+            {planRuns.length > 0 ? (
+              <div className="plan-history">
+                <div className="section-heading section-heading--row">
+                  <div><span className="eyebrow">저장 이력</span><h3>이 기기에 저장한 계획</h3></div>
+                  <span>최근 순 · {planRuns.length}개</span>
+                </div>
+                <ul>
+                  {planRuns.map((plan) => (
+                    <li key={plan.id} className="dashboard-card">
+                      <div>
+                        <strong>{scenarioNames[plan.selectedScenarioId]}</strong>
+                        <p>{plan.mode === "MONTHLY_SALARY" ? "월급 계획" : "여윳돈 계획"} · <time dateTime={plan.createdAt}>{new Date(plan.createdAt).toLocaleString("ko-KR")}</time></p>
+                      </div>
+                      <div className="plan-history__actions">
+                        <button className="button button--secondary" type="button" disabled={dataBusy} onClick={() => openStoredPlan(plan)}>상세 보기</button>
+                        <button className="button button--danger" type="button" disabled={dataBusy} onClick={() => void deleteStoredPlan(plan)}>삭제</button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
           </section>
         ) : null}
 
