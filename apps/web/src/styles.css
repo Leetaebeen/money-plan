@@ -1750,3 +1750,88 @@ p {
     flex: 1;
   }
 }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+.monthly-history {
+  margin-top: 56px;
+  border-top: 1px solid var(--line);
+  padding-top: 40px;
+}
+
+.monthly-history h3 {
+  margin: 8px 0 0;
+  font-size: 1.5rem;
+}
+
+.monthly-history__notice {
+  border-radius: 16px;
+  padding: 14px 16px;
+  color: var(--muted);
+  background: #f5f4ee;
+}
+
+.monthly-history__table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: white;
+}
+
+.monthly-history table {
+  width: 100%;
+  min-width: 850px;
+  border-collapse: collapse;
+}
+
+.monthly-history th,
+.monthly-history td {
+  border-bottom: 1px solid var(--line);
+  padding: 18px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.monthly-history tbody tr:last-child th,
+.monthly-history tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.monthly-history thead th {
+  color: var(--muted);
+  background: #f5f4ee;
+  font-size: 0.82rem;
+}
+
+.monthly-history tbody th,
+.monthly-history td strong,
+.monthly-history td small {
+  display: block;
+}
+
+.monthly-history tbody small {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.monthly-history td button {
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 12px;
+  color: white;
+  background: var(--green);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
