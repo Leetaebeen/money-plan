@@ -90,6 +90,12 @@ export interface PreparedWindfallContext {
   prepared: PreparedPlannerDraft;
 }
 
+export interface PreparedMonthlyContext {
+  profile?: StoredProfile;
+  monthly: PreparedPlannerDraft;
+  windfall: PreparedPlannerDraft;
+}
+
 export interface SavePlanRunOutcome {
   run: StoredPlanRun;
   draftCompleted: boolean;
@@ -399,6 +405,22 @@ export async function preparePlannerDraftSession(
   await draftWriteQueues[id];
   const current: unknown = await db.plannerDrafts.get(id);
   return preparedPlannerDraftFromState(id, current);
+}
+
+export async function prepareMonthlyDraftContext(): Promise<PreparedMonthlyContext> {
+  await Promise.all([draftWriteQueues.monthly, draftWriteQueues.windfall]);
+  return db.transaction("r", db.profiles, db.plannerDrafts, async () => {
+    const [profile, monthlyState, windfallState] = await Promise.all([
+      db.profiles.get("primary"),
+      db.plannerDrafts.get("monthly"),
+      db.plannerDrafts.get("windfall"),
+    ]);
+    return {
+      profile: profile ? structuredClone(profile) : undefined,
+      monthly: preparedPlannerDraftFromState("monthly", monthlyState),
+      windfall: preparedPlannerDraftFromState("windfall", windfallState),
+    };
+  });
 }
 
 export async function prepareWindfallDraftContext(): Promise<PreparedWindfallContext> {

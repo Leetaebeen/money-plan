@@ -18,6 +18,7 @@ const {
   loadMonthlyDraft,
   loadProfile,
   loadWindfallDraft,
+  prepareMonthlyDraftContext,
   preparePlannerDraftSession,
   saveMonthlyDraft,
   saveMonthlyDraftAndProfile,
@@ -486,6 +487,43 @@ test("monthly draft and profile changes roll back together on a profile conflict
   assert.equal((await loadMonthlyDraft())?.revision, monthly.revision);
   assert.equal((await loadMonthlyDraft())?.draft.profile.monthlyNetIncomeWon, "3000000");
   assert.equal((await loadProfile())?.updatedAt, latestProfile.updatedAt);
+});
+
+test("monthly conflict reconciliation reads the latest profile and windfall state together", async () => {
+  const original = validMonthlyDraft();
+  const firstMonthly = await saveMonthlyDraft(
+    original,
+    1,
+    newReference("monthly", "monthly-context-session"),
+  );
+  const firstProfile = await saveProfile(original.profile, null, referenceFor(firstMonthly));
+  await saveWindfallDraft({
+    amountWon: "700000",
+    taxReserveWon: "0",
+    nearTermReserveWon: "0",
+    deficitCoverageMonths: null,
+    goalCatchUps: {},
+  }, firstProfile.updatedAt, newReference("windfall", "windfall-context-session"));
+
+  const staleReference = referenceFor(firstMonthly);
+  const remote = structuredClone(original);
+  remote.profile.monthlyNetIncomeWon = "3400000";
+  const remoteMonthly = await saveMonthlyDraft(remote, 2, staleReference);
+  await saveMonthlyDraftAndProfile(
+    remote,
+    2,
+    referenceFor(remoteMonthly),
+    firstProfile.updatedAt,
+    "2026-08-29T01:00:00.000Z",
+  );
+
+  await assert.rejects(saveMonthlyDraft(original, 1, staleReference), DraftConflictError);
+  const context = await prepareMonthlyDraftContext();
+
+  assert.equal(context.monthly.draft?.id, "monthly");
+  assert.equal(context.monthly.draft?.id === "monthly" && context.monthly.draft.step, 2);
+  assert.equal(context.profile?.draft.monthlyNetIncomeWon, "3400000");
+  assert.equal(context.windfall.draft, undefined);
 });
 
 test("discarded newer drafts do not accept plan results from older revisions", async () => {
