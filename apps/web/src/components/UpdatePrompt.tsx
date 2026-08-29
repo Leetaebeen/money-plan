@@ -9,9 +9,9 @@ export function UpdatePrompt() {
   if (!needRefresh) return null;
 
   return (
-    <aside className="update-toast" role="status">
+    <aside className="update-toast" role="region" aria-labelledby="update-title">
       <div>
-        <strong>새 버전이 준비됐어요.</strong>
+        <strong id="update-title">새 버전이 준비됐어요.</strong>
         <p>입력 중인 내용을 확인한 뒤 업데이트할 수 있어요.</p>
       </div>
       <div className="update-toast__actions">

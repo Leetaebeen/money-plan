@@ -2,6 +2,7 @@ import { calculateAllocationPlans, type AllocationResult, type MonthlyPlanInput 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { GoalEditor } from "../../components/GoalEditor";
 import { MoneyField } from "../../components/MoneyField";
+import { SkipLink } from "../../components/SkipLink";
 import { StepIndicator } from "../../components/StepIndicator";
 import {
   buildMonthlyInput,
@@ -160,6 +161,7 @@ export function MonthlyPlanner({
 
   return (
     <main className="planner-shell">
+      <SkipLink />
       <div className="planner-topbar">
         <button className="icon-button" type="button" disabled={submitting} onClick={step === 0 ? () => void leavePlanner() : () => setStep((value) => value - 1)} aria-label="이전 화면">
           ←
@@ -176,7 +178,7 @@ export function MonthlyPlanner({
         <div className="draft-restored" role="status">작성 중이던 입력과 단계를 이 브라우저에서 복구했어요.</div>
       ) : null}
 
-      <form className="planner-form" aria-busy={submitting} onSubmit={(event) => event.preventDefault()}>
+      <form id="main-content" className="planner-form" aria-busy={submitting} tabIndex={-1} onSubmit={(event) => event.preventDefault()}>
         <fieldset disabled={submitting}>
         {storageError ? <div className="error-summary" role="alert"><p>{storageError}</p></div> : null}
         {Object.keys(errors).length > 0 ? (

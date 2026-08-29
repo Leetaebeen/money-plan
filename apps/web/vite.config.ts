@@ -16,9 +16,11 @@ export default defineConfig({
         theme_color: "#173f36",
         background_color: "#f5f3ed",
         display: "standalone",
+        id: "./",
         start_url: "./",
         scope: "./",
         lang: "ko-KR",
+        categories: ["finance", "productivity"],
         icons: [
           {
             src: "money-plan-icon.svg",
