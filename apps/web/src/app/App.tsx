@@ -13,6 +13,7 @@ import {
   type WindfallFormDraft,
 } from "../domain/plan-form";
 import { MonthlyPlanner } from "../features/monthly/MonthlyPlanner";
+import { MonthlyHistory } from "../features/history/MonthlyHistory";
 import { PlanResults } from "../features/results/PlanResults";
 import { WindfallPlanner } from "../features/windfall/WindfallPlanner";
 import {
@@ -786,6 +787,7 @@ export function App() {
                 </ul>
               </div>
             ) : null}
+            <MonthlyHistory planRuns={planRuns} onOpenPlan={openStoredPlan} />
           </section>
         ) : null}
 
