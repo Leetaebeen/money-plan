@@ -23,6 +23,7 @@ import {
   exportLocalData,
   loadLatestPlan,
   loadProfile,
+  prepareMonthlyDraftContext,
   preparePlannerDraftSession,
   prepareWindfallDraftContext,
   requestPersistentStorage,
@@ -232,17 +233,29 @@ export function App() {
 
   const reconcileMonthlyDraft = useCallback(async (expectedSequence?: number) => {
     while (true) {
-      const tail = monthlySaveTailRef.current;
-      await tail.catch(() => undefined);
-      if (monthlySaveTailRef.current === tail) break;
+      const monthlyTail = monthlySaveTailRef.current;
+      const windfallTail = windfallSaveTailRef.current;
+      await Promise.all([
+        monthlyTail.catch(() => undefined),
+        windfallTail.catch(() => undefined),
+      ]);
+      if (
+        monthlySaveTailRef.current === monthlyTail &&
+        windfallSaveTailRef.current === windfallTail
+      ) break;
     }
-    const prepared = await preparePlannerDraftSession("monthly");
+    const context = await prepareMonthlyDraftContext();
+    const prepared = context.monthly;
     if (expectedSequence !== undefined && monthlyWriteSequenceRef.current !== expectedSequence) {
-      return prepared;
+      return context;
     }
     monthlyWriteSequenceRef.current += 1;
+    windfallWriteSequenceRef.current += 1;
     monthlyReferenceRef.current = prepared.reference;
+    windfallReferenceRef.current = context.windfall.reference;
     monthlySaveTailRef.current = Promise.resolve();
+    windfallSaveTailRef.current = Promise.resolve();
+    setStoredProfile(context.profile);
     if (prepared.draft?.id === "monthly") {
       setMonthlyDraft(prepared.draft);
       setHasMonthlyDraft(true);
@@ -250,8 +263,20 @@ export function App() {
       setMonthlyDraft(undefined);
       setHasMonthlyDraft(false);
     }
+    if (
+      context.windfall.draft?.id === "windfall" &&
+      context.profile &&
+      context.windfall.draft.baseProfileUpdatedAt === context.profile.updatedAt
+    ) {
+      setWindfallDraft(context.windfall.draft);
+      setHasWindfallDraft(true);
+    } else {
+      setWindfallDraft(undefined);
+      setHasWindfallDraft(false);
+    }
     setMonthlyPlannerKey((value) => value + 1);
-    return prepared;
+    setWindfallPlannerKey((value) => value + 1);
+    return context;
   }, []);
 
   const reconcileWindfallDraft = useCallback(async (expectedSequence?: number) => {
@@ -336,8 +361,6 @@ export function App() {
     } catch (error: unknown) {
       await reconcileMonthlyDraft(writeSequence).catch(() => undefined);
       if (error instanceof ProfileConflictError) {
-        const currentProfile = await loadProfile().catch(() => undefined);
-        setStoredProfile(currentProfile);
         setStorageError(error.message);
       } else {
         setStorageError(draftStorageError(error, "작성 중인 월급 계획을 기기에 저장하지 못했어요."));
@@ -439,8 +462,6 @@ export function App() {
   const startMonthlyPlan = async () => {
     if (loading || !beginDataOperation()) return;
     try {
-      const currentProfile = await loadProfile();
-      setStoredProfile(currentProfile);
       await reconcileMonthlyDraft();
       setScreen("MONTHLY");
     } catch {
