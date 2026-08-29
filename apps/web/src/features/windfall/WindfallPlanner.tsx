@@ -1,6 +1,7 @@
 import { calculateAllocationPlans, type AllocationResult, type WindfallPlanInput } from "@money-plan/finance-engine";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MoneyField } from "../../components/MoneyField";
+import { SkipLink } from "../../components/SkipLink";
 import {
   buildWindfallInput,
   createEmptyWindfallDraft,
@@ -44,6 +45,11 @@ export function WindfallPlanner({
   const lastNotifiedSignature = useRef(draftSignature);
   const changedSinceMount = useRef(false);
   const structuralDeficitWon = useMemo(() => monthlyStructuralDeficitWon(profile), [profile]);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+
+  useEffect(() => {
+    headingRef.current?.focus();
+  }, []);
 
   useEffect(() => {
     if (draftSignature === lastNotifiedSignature.current) return;
@@ -80,6 +86,7 @@ export function WindfallPlanner({
 
   return (
     <main className="planner-shell">
+      <SkipLink />
       <div className="planner-topbar">
         <button className="icon-button" type="button" disabled={submitting} onClick={() => void leavePlanner()} aria-label="홈으로 돌아가기">←</button>
         <span>여윳돈 나누기</span>
@@ -92,7 +99,7 @@ export function WindfallPlanner({
         <div className="draft-restored" role="status">작성 중이던 여윳돈 입력을 이 브라우저에서 복구했어요.</div>
       ) : null}
 
-      <form className="planner-form" aria-busy={submitting} onSubmit={(event) => event.preventDefault()}>
+      <form id="main-content" className="planner-form" aria-busy={submitting} tabIndex={-1} onSubmit={(event) => event.preventDefault()}>
         <fieldset disabled={submitting}>
         {storageError ? <div className="error-summary" role="alert"><p>{storageError}</p></div> : null}
         {Object.keys(errors).length > 0 ? (
@@ -104,7 +111,7 @@ export function WindfallPlanner({
 
         <section className="form-section">
           <span className="eyebrow">추가 수입</span>
-          <h1>이번에 생긴 여윳돈을 어떻게 나눌까요?</h1>
+          <h1 ref={headingRef} tabIndex={-1}>이번에 생긴 여윳돈을 어떻게 나눌까요?</h1>
           <p className="section-lead">기존 월급 계획은 그대로 두고, 이번에 생긴 돈만 다시 계산합니다.</p>
 
           <MoneyField

@@ -5,6 +5,7 @@ import type {
   ScenarioId,
 } from "@money-plan/finance-engine";
 import { ScenarioCard } from "../../components/ScenarioCard";
+import { SkipLink } from "../../components/SkipLink";
 import { formatWon } from "../../domain/plan-form";
 import {
   educationalDisclosure,
@@ -62,13 +63,14 @@ export function PlanResults({
 
   return (
     <main className="results-shell" aria-busy={savingScenarioId !== null}>
+      <SkipLink />
       <div className="planner-topbar results-topbar">
         <button className="icon-button" type="button" disabled={savingScenarioId !== null} onClick={onBack} aria-label={readOnly ? "홈으로 돌아가기" : "입력 화면으로 돌아가기"}>←</button>
         <span>{readOnly ? "저장한 계획" : "계산 결과"}</span>
         <button className="text-button" type="button" disabled={savingScenarioId !== null} onClick={onHome}>홈</button>
       </div>
 
-      <section className="results-hero">
+      <section id="main-content" className="results-hero" tabIndex={-1}>
         <span className="eyebrow">
           {result.asOf} 기준 · 규칙 {result.ruleVersion}
           {readOnly && savedAt ? <> · <time dateTime={savedAt}>{new Date(savedAt).toLocaleString("ko-KR")} 저장</time></> : null}

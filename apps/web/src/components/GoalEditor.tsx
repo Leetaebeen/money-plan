@@ -89,9 +89,10 @@ export function GoalEditor({
                 maxLength={30}
                 onChange={(event) => updateGoal(index, { label: event.target.value })}
                 aria-invalid={Boolean(errors[`${base}.label`])}
+                aria-describedby={errors[`${base}.label`] ? `goal-label-${goal.id}-error` : undefined}
                 placeholder="예: 1년 뒤 이사비"
               />
-              {errors[`${base}.label`] ? <p className="field__error">{errors[`${base}.label`]}</p> : null}
+              {errors[`${base}.label`] ? <p className="field__error" id={`goal-label-${goal.id}-error`}>{errors[`${base}.label`]}</p> : null}
             </div>
 
             <div className="field">
@@ -131,16 +132,18 @@ export function GoalEditor({
                 <input
                   id={`goal-months-${goal.id}`}
                   inputMode="numeric"
+                  aria-label="목표까지 남은 기간(개월)"
                   value={goal.monthsRemaining}
                   onChange={(event) => updateGoal(index, {
                     monthsRemaining: event.target.value.replace(/[^0-9]/gu, "").slice(0, 3),
                   })}
                   placeholder="12"
                   aria-invalid={Boolean(errors[`${base}.monthsRemaining`])}
+                  aria-describedby={errors[`${base}.monthsRemaining`] ? `goal-months-${goal.id}-error` : undefined}
                 />
-                <span>개월</span>
+                <span aria-hidden="true">개월</span>
               </div>
-              {errors[`${base}.monthsRemaining`] ? <p className="field__error">{errors[`${base}.monthsRemaining`]}</p> : null}
+              {errors[`${base}.monthsRemaining`] ? <p className="field__error" id={`goal-months-${goal.id}-error`}>{errors[`${base}.monthsRemaining`]}</p> : null}
             </div>
 
             {catchUps && onCatchUpsChange ? (

@@ -7,6 +7,7 @@ import type {
   WindfallPlanInput,
 } from "@money-plan/finance-engine";
 import { UpdatePrompt } from "../components/UpdatePrompt";
+import { SkipLink } from "../components/SkipLink";
 import {
   formatWon,
   type MonthlyFormDraft,
@@ -661,6 +662,7 @@ export function App() {
 
   return (
     <div className="home-shell" aria-busy={dataBusy}>
+      <SkipLink />
       <header className="site-header">
         <a className="brand" href={import.meta.env.BASE_URL} aria-label="머니플랜 홈">
           <img src={`${import.meta.env.BASE_URL}money-plan-icon.svg`} alt="" />
@@ -669,7 +671,7 @@ export function App() {
         <span className="local-badge">기기 안에만 저장</span>
       </header>
 
-      <main>
+      <main id="main-content" tabIndex={-1}>
         <section className="home-hero">
           <div className="home-hero__copy">
             <span className="eyebrow">월급 들어온 날, 3분 계획</span>
