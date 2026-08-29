@@ -13,8 +13,10 @@ const {
   db,
   deleteAllLocalData,
   deletePlannerDraft,
+  deletePlanRun,
   exportLocalData,
   loadLatestPlan,
+  loadPlanRuns,
   loadMonthlyDraft,
   loadProfile,
   loadWindfallDraft,
@@ -116,6 +118,29 @@ test("the v2 database keeps profile and plan data written by the v1 schema", asy
   assert.equal(profile?.draft.monthlyNetIncomeWon, "3000000");
   assert.equal((await loadLatestPlan())?.id, "legacy-plan");
   assert.equal(await db.plannerDrafts.count(), 0);
+});
+
+test("plan history loads newest first and supports individual deletion", async () => {
+  const plan = readyMonthlyPlan();
+  const older = {
+    id: "older-plan",
+    mode: plan.input.mode,
+    ...plan,
+    createdAt: "2026-08-28T01:00:00.000Z",
+  };
+  const newer = {
+    id: "newer-plan",
+    mode: plan.input.mode,
+    ...plan,
+    createdAt: "2026-08-29T01:00:00.000Z",
+  };
+  await db.planRuns.bulkPut([older, newer]);
+
+  assert.deepEqual((await loadPlanRuns()).map((stored) => stored.id), ["newer-plan", "older-plan"]);
+
+  await deletePlanRun("newer-plan");
+  assert.deepEqual((await loadPlanRuns()).map((stored) => stored.id), ["older-plan"]);
+  assert.equal((await loadLatestPlan())?.id, "older-plan");
 });
 
 test("monthly and windfall drafts round-trip independently", async () => {

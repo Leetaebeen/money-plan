@@ -1699,3 +1699,54 @@ p {
     animation-iteration-count: 1 !important;
   }
 }
+
+
+.plan-history {
+  margin-top: 36px;
+}
+
+.plan-history h3 {
+  margin: 8px 0 0;
+  font-size: 1.5rem;
+}
+
+.plan-history ul {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plan-history li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.plan-history li strong {
+  font-size: 1.12rem;
+}
+
+.plan-history li p {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
+.plan-history__actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+@media (max-width: 640px) {
+  .plan-history li {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .plan-history__actions .button {
+    flex: 1;
+  }
+}
