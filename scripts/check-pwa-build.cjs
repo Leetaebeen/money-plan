@@ -11,6 +11,7 @@ function readOutput(relativePath) {
 }
 
 const indexHtml = readOutput("index.html");
+const calculatorHtml = readOutput("calculator/index.html");
 const manifest = JSON.parse(readOutput("manifest.webmanifest"));
 const serviceWorker = readOutput("sw.js");
 
@@ -19,6 +20,9 @@ assert.match(indexHtml, /name=["']viewport["']/i, "모바일 viewport 메타데�
 assert.match(indexHtml, /name=["']theme-color["']/i, "브라우저 테마 색상 메타데이터가 없습니다.");
 assert.match(indexHtml, /name=["']description["']/i, "검색·설치 설명 메타데이터가 없습니다.");
 assert.match(indexHtml, /rel=["']manifest["']/i, "웹 앱 manifest 연결이 없습니다.");
+assert.match(calculatorHtml, /<html\s+lang=["']ko["']/i, "공개 계산기 문서 기본 언어가 한국어가 아닙니다.");
+assert.match(calculatorHtml, /name=["']viewport["']/i, "공개 계산기 모바일 viewport가 없습니다.");
+assert.match(calculatorHtml, /name=["']description["']/i, "공개 계산기 검색 설명이 없습니다.");
 
 assert.equal(manifest.lang, "ko-KR");
 assert.equal(manifest.display, "standalone");
@@ -36,7 +40,7 @@ assert.ok(
   "마스커블 PWA 아이콘이 없습니다.",
 );
 
-for (const precachedPath of ["index.html", "manifest.webmanifest", "money-plan-icon.svg"]) {
+for (const precachedPath of ["index.html", "calculator/index.html", "manifest.webmanifest", "money-plan-icon.svg"]) {
   assert.ok(
     serviceWorker.includes(`url:"${precachedPath}"`),
     `서비스 워커가 핵심 파일을 미리 저장하지 않습니다: ${precachedPath}`,

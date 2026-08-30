@@ -12,27 +12,30 @@ function readOutput(relativePath) {
 }
 
 const indexHtml = readOutput("index.html");
+const calculatorHtml = readOutput("calculator/index.html");
 const manifest = JSON.parse(readOutput("manifest.webmanifest"));
 const serviceWorker = readOutput("sw.js");
 const iconPath = path.join(outputDirectory, "money-plan-icon.svg");
-const localAssetUrls = [...indexHtml.matchAll(/\b(?:href|src)=["']([^"']+)["']/g)]
-  .map((match) => match[1])
-  .filter((url) => url.startsWith("/"));
+for (const [htmlName, html] of [["index.html", indexHtml], ["calculator/index.html", calculatorHtml]]) {
+  const localAssetUrls = [...html.matchAll(/\b(?:href|src)=["']([^"']+)["']/g)]
+    .map((match) => match[1])
+    .filter((url) => url.startsWith("/"));
 
-assert.ok(localAssetUrls.length > 0, "index.html에서 로컬 자산 경로를 찾지 못했습니다.");
-for (const assetUrl of localAssetUrls) {
-  assert.ok(
-    assetUrl.startsWith(repositoryBase),
-    `Pages 기준 경로 밖을 가리키는 자산이 있습니다: ${assetUrl}`,
-  );
+  assert.ok(localAssetUrls.length > 0, `${htmlName}에서 로컬 자산 경로를 찾지 못했습니다.`);
+  for (const assetUrl of localAssetUrls) {
+    assert.ok(
+      assetUrl.startsWith(repositoryBase),
+      `Pages 기준 경로 밖을 가리키는 자산이 있습니다: ${assetUrl}`,
+    );
 
-  const relativeAssetPath = decodeURIComponent(
-    assetUrl.slice(repositoryBase.length).split(/[?#]/, 1)[0],
-  );
-  assert.ok(
-    fs.existsSync(path.join(outputDirectory, relativeAssetPath)),
-    `index.html이 존재하지 않는 자산을 가리킵니다: ${assetUrl}`,
-  );
+    const relativeAssetPath = decodeURIComponent(
+      assetUrl.slice(repositoryBase.length).split(/[?#]/, 1)[0],
+    );
+    assert.ok(
+      fs.existsSync(path.join(outputDirectory, relativeAssetPath)),
+      `${htmlName}이 존재하지 않는 자산을 가리킵니다: ${assetUrl}`,
+    );
+  }
 }
 assert.ok(
   !indexHtml.includes('href="/money-plan-icon.svg"') &&
@@ -47,7 +50,7 @@ assert.ok(
 );
 assert.ok(fs.existsSync(iconPath), "PWA 아이콘 파일이 배포 산출물에 없습니다.");
 assert.ok(serviceWorker.length > 0, "서비스 워커가 비어 있습니다.");
-for (const precachedPath of ["index.html", "manifest.webmanifest", "money-plan-icon.svg"]) {
+for (const precachedPath of ["index.html", "calculator/index.html", "manifest.webmanifest", "money-plan-icon.svg"]) {
   assert.ok(
     serviceWorker.includes(`url:"${precachedPath}"`),
     `서비스 워커가 핵심 파일을 미리 저장하지 않습니다: ${precachedPath}`,

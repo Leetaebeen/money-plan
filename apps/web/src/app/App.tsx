@@ -681,6 +681,9 @@ export function App() {
               <button className="button button--primary button--large" type="button" onClick={startMonthlyPlan} disabled={loading || dataBusy}>
                 {hasMonthlyDraft ? "작성 중 월급 계획 이어서" : storedProfile ? "월급 계획 다시 계산" : "월급 계획 만들기"}
               </button>
+              <a className="button button--secondary button--large" href={`${import.meta.env.BASE_URL}calculator/`}>
+                저장 없이 빠르게 계산
+              </a>
               {storedProfile ? (
                 <button className="button button--secondary button--large" type="button" onClick={startWindfallPlan} disabled={dataBusy}>
                   {hasWindfallDraft ? "작성 중 여윳돈 계획 이어서" : "+ 여윳돈 나누기"}

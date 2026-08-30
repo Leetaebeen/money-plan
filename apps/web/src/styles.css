@@ -92,6 +92,7 @@ p {
   padding: 12px 20px;
   font-weight: 800;
   line-height: 1.2;
+  text-decoration: none;
   cursor: pointer;
   transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease;
 }
