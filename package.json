@@ -20,7 +20,7 @@
     "dev:web": "npm run dev --workspace @money-plan/web",
     "security:check": "node scripts/security-check.cjs",
     "setup:git": "node scripts/setup-git.cjs",
-    "test": "node --test packages/finance-engine/tests/allocation.test.ts apps/web/tests/plan-form.test.ts apps/web/tests/monthly-history.test.ts apps/web/tests/persistence.test.ts",
+    "test": "node --test packages/finance-engine/tests/allocation.test.ts apps/web/tests/plan-form.test.ts apps/web/tests/monthly-history.test.ts apps/web/tests/persistence.test.ts apps/web/tests/public-calculator.test.ts",
     "test:engine": "node --test packages/finance-engine/tests/allocation.test.ts",
     "typecheck": "tsc --noEmit && npm run typecheck --workspace @money-plan/web"
   },
