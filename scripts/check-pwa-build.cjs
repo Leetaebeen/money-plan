@@ -13,6 +13,7 @@ function readOutput(relativePath) {
 const indexHtml = readOutput("index.html");
 const calculatorHtml = readOutput("calculator/index.html");
 const manifest = JSON.parse(readOutput("manifest.webmanifest"));
+const financialProductCatalog = JSON.parse(readOutput("data/financial-products.json"));
 const serviceWorker = readOutput("sw.js");
 
 assert.match(indexHtml, /<html\s+lang=["']ko["']/i, "문서 기본 언어가 한국어가 아닙니다.");
@@ -23,6 +24,11 @@ assert.match(indexHtml, /rel=["']manifest["']/i, "웹 앱 manifest 연결이 없
 assert.match(calculatorHtml, /<html\s+lang=["']ko["']/i, "공개 계산기 문서 기본 언어가 한국어가 아닙니다.");
 assert.match(calculatorHtml, /name=["']viewport["']/i, "공개 계산기 모바일 viewport가 없습니다.");
 assert.match(calculatorHtml, /name=["']description["']/i, "공개 계산기 검색 설명이 없습니다.");
+assert.equal(financialProductCatalog.schemaVersion, "financial-product-catalog-v1");
+assert.ok(
+  Array.isArray(financialProductCatalog.collections),
+  "금융상품 사실조회 스냅샷의 collections가 배열이 아닙니다.",
+);
 
 assert.equal(manifest.lang, "ko-KR");
 assert.equal(manifest.display, "standalone");
@@ -40,7 +46,7 @@ assert.ok(
   "마스커블 PWA 아이콘이 없습니다.",
 );
 
-for (const precachedPath of ["index.html", "calculator/index.html", "manifest.webmanifest", "money-plan-icon.svg"]) {
+for (const precachedPath of ["index.html", "calculator/index.html", "data/financial-products.json", "manifest.webmanifest", "money-plan-icon.svg"]) {
   assert.ok(
     serviceWorker.includes(`url:"${precachedPath}"`),
     `서비스 워커가 핵심 파일을 미리 저장하지 않습니다: ${precachedPath}`,

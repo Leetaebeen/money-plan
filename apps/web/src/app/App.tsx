@@ -15,6 +15,7 @@ import {
 } from "../domain/plan-form";
 import { MonthlyPlanner } from "../features/monthly/MonthlyPlanner";
 import { MonthlyHistory } from "../features/history/MonthlyHistory";
+import { ProductFacts } from "../features/products/ProductFacts";
 import { PlanResults } from "../features/results/PlanResults";
 import { WindfallPlanner } from "../features/windfall/WindfallPlanner";
 import {
@@ -42,7 +43,7 @@ import {
 } from "../persistence/db";
 import { scenarioNames } from "../presentation/messages.ko";
 
-type Screen = "HOME" | "MONTHLY" | "WINDFALL" | "RESULT";
+type Screen = "HOME" | "MONTHLY" | "WINDFALL" | "PRODUCTS" | "RESULT";
 
 interface ActiveCalculation {
   input: AllocationInput;
@@ -611,6 +612,10 @@ export function App() {
     }
   };
 
+  if (screen === "PRODUCTS") {
+    return <ProductFacts onHome={goHome} />;
+  }
+
   if (screen === "MONTHLY") {
     return (
       <MonthlyPlanner
@@ -684,6 +689,9 @@ export function App() {
               <a className="button button--secondary button--large" href={`${import.meta.env.BASE_URL}calculator/`}>
                 저장 없이 빠르게 계산
               </a>
+              <button className="button button--secondary button--large" type="button" onClick={() => setScreen("PRODUCTS")}>
+                금융상품 사실조회
+              </button>
               {storedProfile ? (
                 <button className="button button--secondary button--large" type="button" onClick={startWindfallPlan} disabled={dataBusy}>
                   {hasWindfallDraft ? "작성 중 여윳돈 계획 이어서" : "+ 여윳돈 나누기"}

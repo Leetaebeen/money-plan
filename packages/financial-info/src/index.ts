@@ -1,4 +1,9 @@
 export {
+  createFinancialProductCatalog,
+  parseFinancialProductCatalog,
+  type FinancialProductCatalog,
+} from "./catalog.ts";
+export {
   collectFinlifeProducts,
   FINLIFE_ENDPOINTS,
   FinlifeCollectionError,
