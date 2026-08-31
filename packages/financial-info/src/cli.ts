@@ -1,4 +1,5 @@
 import { createFinancialProductCatalog } from "./catalog.ts";
+import { writeFinancialProductCatalogFile } from "./catalog-file.ts";
 import { collectFinlifeProducts, FinlifeCollectionError } from "./finlife.ts";
 import type { FinlifeProductKind } from "./types.ts";
 
@@ -37,6 +38,19 @@ async function main(): Promise<void> {
   }
 
   const catalog = createFinancialProductCatalog(collections);
+  const outputRequested = process.argv.includes("--output");
+  const outputPath = argumentValue("--output");
+  if (outputRequested && (!outputPath || outputPath.startsWith("--"))) {
+    throw new FinlifeCollectionError(
+      "INVALID_QUERY",
+      "--output 다음에 저장할 JSON 파일 경로를 입력해 주세요.",
+    );
+  }
+  if (outputPath) {
+    const writtenPath = await writeFinancialProductCatalogFile(outputPath, catalog);
+    process.stderr.write(`금융상품 스냅샷을 저장했습니다: ${writtenPath}\n`);
+    return;
+  }
   process.stdout.write(`${JSON.stringify(catalog, null, 2)}\n`);
 }
 

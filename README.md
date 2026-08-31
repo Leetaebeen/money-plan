@@ -45,8 +45,14 @@ npm test
 
 ```powershell
 $env:FINLIFE_API_KEY = "<발급받은_인증키>"
-npm run collect:finlife -- --kind all --group 020000 | Out-File -Encoding utf8 apps/web/public/data/financial-products.json
+npm run collect:finlife -- --kind all --group 020000 --output apps/web/public/data/financial-products.json
 ```
+
+GitHub Pages 배포에서 공식정보를 자동 갱신하려면 저장소의 `Settings` →
+`Secrets and variables` → `Actions`에 `FINLIFE_API_KEY`라는 Repository secret을
+등록합니다. 키가 있으면 `main` 배포 전에 새 스냅샷을 수집하고, 매주 월요일
+오전 9시 15분(KST)에도 같은 검증·배포를 실행합니다. 정기·수동 실행은 키가
+없거나 수집 검증이 실패하면 현재 배포를 유지한 채 실패합니다.
 
 월급·지출·목표 데이터, 작성 중 초안과 사용자가 저장한 시나리오는 브라우저 IndexedDB에만 저장합니다. 회원가입과 서버 전송은 아직 사용하지 않습니다.
 
@@ -64,4 +70,4 @@ npm run collect:finlife -- --kind all --group 020000 | Out-File -Encoding utf8 a
 ## 다음 단계
 
 1. 실기기 PWA 베타 결과 수집 및 보완
-2. 배포 환경의 공식 금융상품 스냅샷 자동 갱신 연결
+2. 금융상품 스냅샷 갱신 이력과 실패 알림 보강

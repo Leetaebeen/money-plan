@@ -1,6 +1,8 @@
 name: CI
 
 on:
+  schedule:
+    - cron: "15 0 * * 1"
   workflow_dispatch:
   pull_request:
   push:
@@ -40,6 +42,8 @@ jobs:
           BEFORE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           AFTER_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: node scripts/validate-commit-range.cjs "$BEFORE_SHA" "$AFTER_SHA"
+      - name: Check financial product refresh workflow
+        run: npm run check:financial-refresh
 
       - name: Check tracked files for secrets
         run: npm run security:check
@@ -80,6 +84,20 @@ jobs:
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v6
+
+      - name: Refresh official financial product snapshot
+        env:
+          FINLIFE_API_KEY: ${{ secrets.FINLIFE_API_KEY }}
+        run: |
+          if [ -z "$FINLIFE_API_KEY" ]; then
+            if [ "$GITHUB_EVENT_NAME" != "push" ]; then
+              echo "::error::FINLIFE_API_KEY 저장소 비밀값을 먼저 등록해 주세요."
+              exit 1
+            fi
+            echo "::notice::FINLIFE_API_KEY가 없어 추적 중인 스냅샷으로 배포합니다."
+            exit 0
+          fi
+          npm run collect:finlife -- --kind all --group 020000 --output apps/web/public/data/financial-products.json
 
       - name: Build for GitHub Pages
         run: npm run build:pages

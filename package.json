@@ -13,7 +13,8 @@
   "scripts": {
     "build:pages": "npm run build --workspace @money-plan/web -- --base /money-plan/",
     "build:web": "npm run build --workspace @money-plan/web",
-    "check": "npm run security:check && npm run typecheck && npm test && npm run build:web && npm run check:pwa",
+    "check": "npm run security:check && npm run check:financial-refresh && npm run typecheck && npm test && npm run build:web && npm run check:pwa",
+    "check:financial-refresh": "node scripts/check-financial-refresh.cjs",
     "check:pages": "node scripts/check-pages-build.cjs",
     "check:pwa": "node scripts/check-pwa-build.cjs",
     "collect:finlife": "node packages/financial-info/src/cli.ts",
