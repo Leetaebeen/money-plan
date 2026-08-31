@@ -1,3 +1,4 @@
+import { createFinancialProductCatalog } from "./catalog.ts";
 import { collectFinlifeProducts, FinlifeCollectionError } from "./finlife.ts";
 import type { FinlifeProductKind } from "./types.ts";
 
@@ -35,7 +36,8 @@ async function main(): Promise<void> {
     }));
   }
 
-  process.stdout.write(`${JSON.stringify({ collections }, null, 2)}\n`);
+  const catalog = createFinancialProductCatalog(collections);
+  process.stdout.write(`${JSON.stringify(catalog, null, 2)}\n`);
 }
 
 main().catch((error: unknown) => {

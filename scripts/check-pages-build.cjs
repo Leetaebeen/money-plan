@@ -14,6 +14,7 @@ function readOutput(relativePath) {
 const indexHtml = readOutput("index.html");
 const calculatorHtml = readOutput("calculator/index.html");
 const manifest = JSON.parse(readOutput("manifest.webmanifest"));
+const financialProductCatalog = JSON.parse(readOutput("data/financial-products.json"));
 const serviceWorker = readOutput("sw.js");
 const iconPath = path.join(outputDirectory, "money-plan-icon.svg");
 for (const [htmlName, html] of [["index.html", indexHtml], ["calculator/index.html", calculatorHtml]]) {
@@ -49,8 +50,13 @@ assert.ok(
   "PWA manifest 아이콘 경로가 상대 경로가 아닙니다.",
 );
 assert.ok(fs.existsSync(iconPath), "PWA 아이콘 파일이 배포 산출물에 없습니다.");
+assert.equal(financialProductCatalog.schemaVersion, "financial-product-catalog-v1");
+assert.ok(
+  Array.isArray(financialProductCatalog.collections),
+  "금융상품 사실조회 스냅샷의 collections가 배열이 아닙니다.",
+);
 assert.ok(serviceWorker.length > 0, "서비스 워커가 비어 있습니다.");
-for (const precachedPath of ["index.html", "calculator/index.html", "manifest.webmanifest", "money-plan-icon.svg"]) {
+for (const precachedPath of ["index.html", "calculator/index.html", "data/financial-products.json", "manifest.webmanifest", "money-plan-icon.svg"]) {
   assert.ok(
     serviceWorker.includes(`url:"${precachedPath}"`),
     `서비스 워커가 핵심 파일을 미리 저장하지 않습니다: ${precachedPath}`,
