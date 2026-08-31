@@ -3,6 +3,7 @@ export {
   parseFinancialProductCatalog,
   type FinancialProductCatalog,
 } from "./catalog.ts";
+export { writeFinancialProductCatalogFile } from "./catalog-file.ts";
 export {
   collectFinlifeProducts,
   FINLIFE_ENDPOINTS,

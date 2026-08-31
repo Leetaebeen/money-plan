@@ -24,10 +24,11 @@ Node 환경에서 수집하는 패키지입니다. 브라우저 앱과 분리해
 
 ```powershell
 $env:FINLIFE_API_KEY = "<발급받은_인증키>"
-npm run collect:finlife -- --kind all --group 020000 |
-  Out-File -Encoding utf8 apps/web/public/data/financial-products.json
+npm run collect:finlife -- --kind all --group 020000 `
+  --output apps/web/public/data/financial-products.json
 ```
 
 `--kind`는 `deposit`, `saving`, `all`, `--group`은 금융회사 권역 코드이며
 `--finance`로 금융회사 코드 또는 이름을 선택해서 전달할 수 있습니다. 결과 JSON은
-버전이 있는 공개 스냅샷 계약으로 표준 출력에 내보냅니다.
+버전이 있는 공개 스냅샷 계약으로 내보냅니다. `--output`을 생략하면 표준 출력에
+표시하며, 지정하면 검증된 전체 JSON을 임시 파일에 쓴 뒤 대상 파일을 교체합니다.

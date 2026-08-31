@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import {
   createFinancialProductCatalog,
   parseFinancialProductCatalog,
 } from "../src/catalog.ts";
+import { writeFinancialProductCatalogFile } from "../src/catalog-file.ts";
 import type { FinancialProductCollection } from "../src/types.ts";
 
 const COLLECTED_AT = "2026-08-31T01:00:00.000Z";
@@ -88,4 +92,31 @@ test("catalog rejects duplicate products across collections", () => {
     () => createFinancialProductCatalog([collection(), collection()], COLLECTED_AT),
     /중복 상품/u,
   );
+});
+
+test("catalog file writer replaces the target only after validation", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "money-plan-catalog-"));
+  const targetPath = join(directory, "financial-products.json");
+  try {
+    await writeFile(targetPath, "previous snapshot\n", "utf8");
+    const catalog = createFinancialProductCatalog([collection()], COLLECTED_AT);
+
+    const writtenPath = await writeFinancialProductCatalogFile(targetPath, catalog);
+    const written = await readFile(targetPath, "utf8");
+
+    assert.equal(writtenPath, targetPath);
+    assert.deepEqual(JSON.parse(written), catalog);
+    assert.ok(written.endsWith("\n"));
+
+    await assert.rejects(
+      writeFinancialProductCatalogFile(targetPath, {
+        schemaVersion: "unsupported",
+        collections: [],
+      }),
+      /schemaVersion/u,
+    );
+    assert.equal(await readFile(targetPath, "utf8"), written);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
