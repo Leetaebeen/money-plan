@@ -16,11 +16,12 @@
     "check": "npm run security:check && npm run typecheck && npm test && npm run build:web && npm run check:pwa",
     "check:pages": "node scripts/check-pages-build.cjs",
     "check:pwa": "node scripts/check-pwa-build.cjs",
+    "collect:finlife": "node packages/financial-info/src/cli.ts",
     "commit:check": "node scripts/validate-commit-msg.cjs",
     "dev:web": "npm run dev --workspace @money-plan/web",
     "security:check": "node scripts/security-check.cjs",
     "setup:git": "node scripts/setup-git.cjs",
-    "test": "node --test packages/finance-engine/tests/allocation.test.ts apps/web/tests/plan-form.test.ts apps/web/tests/monthly-history.test.ts apps/web/tests/persistence.test.ts apps/web/tests/public-calculator.test.ts",
+    "test": "node --test packages/finance-engine/tests/allocation.test.ts packages/financial-info/tests/finlife.test.ts apps/web/tests/plan-form.test.ts apps/web/tests/monthly-history.test.ts apps/web/tests/persistence.test.ts apps/web/tests/public-calculator.test.ts",
     "test:engine": "node --test packages/finance-engine/tests/allocation.test.ts",
     "typecheck": "tsc --noEmit && npm run typecheck --workspace @money-plan/web"
   },
