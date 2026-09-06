@@ -8,6 +8,11 @@ import {
   parseFinancialProductCatalog,
 } from "../src/catalog.ts";
 import { writeFinancialProductCatalogFile } from "../src/catalog-file.ts";
+import {
+  assertFinancialProductCatalogDeployable,
+  formatFinancialProductCatalogSummary,
+  summarizeFinancialProductCatalog,
+} from "../src/catalog-report.ts";
 import type { FinancialProductCollection } from "../src/types.ts";
 
 const COLLECTED_AT = "2026-08-31T01:00:00.000Z";
@@ -119,4 +124,50 @@ test("catalog file writer replaces the target only after validation", async () =
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+test("catalog report records counts, disclosure months, and snapshot age", () => {
+  const catalog = createFinancialProductCatalog([collection()], COLLECTED_AT);
+  const summary = summarizeFinancialProductCatalog(
+    catalog,
+    new Date("2026-08-31T03:00:00.000Z"),
+  );
+
+  assert.equal(summary.ageHours, 2);
+  assert.equal(summary.collectionCount, 1);
+  assert.equal(summary.productCount, 1);
+  assert.equal(summary.depositCount, 1);
+  assert.equal(summary.savingCount, 0);
+  assert.equal(summary.institutionCount, 1);
+  assert.deepEqual(summary.disclosedMonths, ["2026-08"]);
+  assert.doesNotThrow(() => assertFinancialProductCatalogDeployable(summary, {
+    requireProducts: true,
+    maxAgeHours: 24,
+  }));
+  assert.match(formatFinancialProductCatalogSummary(summary), /전체 상품 \| 1개/u);
+});
+
+test("deployment validation rejects empty, stale, and future snapshots", () => {
+  const emptySummary = summarizeFinancialProductCatalog({
+    schemaVersion: "financial-product-catalog-v1",
+    generatedAt: null,
+    collections: [],
+  });
+  assert.throws(
+    () => assertFinancialProductCatalogDeployable(emptySummary, { requireProducts: true }),
+    /상품이 없습니다/u,
+  );
+
+  const catalog = createFinancialProductCatalog([collection()], COLLECTED_AT);
+  const staleSummary = summarizeFinancialProductCatalog(catalog, new Date("2026-09-10T01:00:00.000Z"));
+  assert.throws(
+    () => assertFinancialProductCatalogDeployable(staleSummary, { maxAgeHours: 192 }),
+    /오래됐습니다/u,
+  );
+
+  const futureSummary = summarizeFinancialProductCatalog(catalog, new Date("2026-08-30T23:00:00.000Z"));
+  assert.throws(
+    () => assertFinancialProductCatalogDeployable(futureSummary),
+    /미래입니다/u,
+  );
 });

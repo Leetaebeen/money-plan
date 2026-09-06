@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./catalog": "./src/catalog.ts",
-    "./catalog-file": "./src/catalog-file.ts"
+    "./catalog-file": "./src/catalog-file.ts",
+    "./catalog-report": "./src/catalog-report.ts"
   }
 }

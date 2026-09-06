@@ -29,4 +29,10 @@ assert.ok(
   '금융상품 스냅샷은 Pages 빌드보다 먼저 갱신해야 합니다.',
 );
 
+assert.ok(workflow.includes('--require-products --max-age-hours 1'), '수집 후 상품 수·최신성 검사가 없습니다.');
+assert.ok(workflow.includes('--github-summary'), 'Actions 요약이 없습니다.');
+assert.ok(workflow.includes('retention-days: 30'), '스냅샷 이력 보관 설정이 없습니다.');
+assert.ok(workflow.includes("steps.refresh.outcome == 'failure'"), '수집 실패 진단 조건이 없습니다.');
+assert.ok(workflow.includes('github.run_attempt'), '재실행별 이력 이름이 없습니다.');
+
 console.log('금융상품 스냅샷 정기 갱신 워크플로 구성을 확인했습니다.');

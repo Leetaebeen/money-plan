@@ -5,6 +5,13 @@ export {
 } from "./catalog.ts";
 export { writeFinancialProductCatalogFile } from "./catalog-file.ts";
 export {
+  assertFinancialProductCatalogDeployable,
+  formatFinancialProductCatalogSummary,
+  summarizeFinancialProductCatalog,
+  type CatalogDeploymentRequirements,
+  type FinancialProductCatalogSummary,
+} from "./catalog-report.ts";
+export {
   collectFinlifeProducts,
   FINLIFE_ENDPOINTS,
   FinlifeCollectionError,
