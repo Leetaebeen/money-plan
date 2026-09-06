@@ -86,6 +86,7 @@ jobs:
         uses: actions/configure-pages@v6
 
       - name: Refresh official financial product snapshot
+        id: refresh
         env:
           FINLIFE_API_KEY: ${{ secrets.FINLIFE_API_KEY }}
         run: |
@@ -98,6 +99,27 @@ jobs:
             exit 0
           fi
           npm run collect:finlife -- --kind all --group 020000 --output apps/web/public/data/financial-products.json
+          npm run report:finlife -- --input apps/web/public/data/financial-products.json --require-products --max-age-hours 1
+
+      - name: Summarize financial product snapshot
+        id: snapshot-summary
+        run: npm run report:finlife -- --input apps/web/public/data/financial-products.json --github-summary
+
+      - name: Keep financial product snapshot history
+        uses: actions/upload-artifact@v4
+        with:
+          name: financial-products-${{ github.run_id }}-${{ github.run_attempt }}
+          path: apps/web/public/data/financial-products.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Explain financial product refresh failure
+        if: failure() && (steps.refresh.outcome == 'failure' || steps.snapshot-summary.outcome == 'failure')
+        run: |
+          echo "::error::금융상품 수집·검증에 실패했습니다. 실패한 단계의 로그를 확인하세요."
+          echo "## 금융상품 스냅샷 갱신 실패" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "인증키 등록 여부와 금융감독원 API 오류를 확인하세요. 기존 Pages 배포는 유지됩니다." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Build for GitHub Pages
         run: npm run build:pages

@@ -18,6 +18,7 @@
     "check:pages": "node scripts/check-pages-build.cjs",
     "check:pwa": "node scripts/check-pwa-build.cjs",
     "collect:finlife": "node packages/financial-info/src/cli.ts",
+    "report:finlife": "node packages/financial-info/src/report-cli.ts",
     "commit:check": "node scripts/validate-commit-msg.cjs",
     "dev:web": "npm run dev --workspace @money-plan/web",
     "security:check": "node scripts/security-check.cjs",
