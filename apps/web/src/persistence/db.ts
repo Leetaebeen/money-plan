@@ -1,4 +1,5 @@
 import Dexie, { type Table } from "dexie";
+import type { Account, Entry, Goal, ImportBatch } from "../features/ledger/model.ts";
 import type {
   AllocationInput,
   AllocationResult,
@@ -125,6 +126,11 @@ class MoneyPlanDatabase extends Dexie {
   profiles!: Table<StoredProfile, string>;
   planRuns!: Table<StoredPlanRun, string>;
   plannerDrafts!: Table<StoredPlannerState, PlannerDraftId>;
+  accounts!: Table<Account, string>;
+  ledgerEntries!: Table<Entry, string>;
+  ledgerGoals!: Table<Goal, string>;
+  importBatches!: Table<ImportBatch, string>;
+  ledgerMeta!: Table<{ id: string; revision: number }, string>;
 
   constructor() {
     super("money-plan");
@@ -136,6 +142,13 @@ class MoneyPlanDatabase extends Dexie {
       profiles: "id, updatedAt",
       planRuns: "id, mode, selectedScenarioId, createdAt",
       plannerDrafts: "id, updatedAt",
+    });
+    this.version(3).stores({
+      accounts: "id",
+      ledgerEntries: "id, accountId, date, batchId, pairId",
+      ledgerGoals: "id",
+      importBatches: "id, accountId, &[accountId+hash]",
+      ledgerMeta: "id",
     });
   }
 }
@@ -739,7 +752,7 @@ export async function exportLocalData(): Promise<Blob> {
 
 export async function deleteAllLocalData(): Promise<void> {
   await Promise.all(Object.values(draftWriteQueues));
-  await db.transaction("rw", db.profiles, db.planRuns, db.plannerDrafts, async () => {
+  await db.transaction("rw", [db.profiles, db.planRuns, db.plannerDrafts, db.accounts, db.ledgerEntries, db.ledgerGoals, db.importBatches, db.ledgerMeta], async () => {
     const [monthlyState, windfallState] = await Promise.all([
       db.plannerDrafts.get("monthly"),
       db.plannerDrafts.get("windfall"),
@@ -749,6 +762,12 @@ export async function deleteAllLocalData(): Promise<void> {
       db.planRuns.clear(),
       db.plannerDrafts.put(deletionBarrierFor("monthly", monthlyState)),
       db.plannerDrafts.put(deletionBarrierFor("windfall", windfallState)),
+      db.accounts.clear(),
+      db.ledgerEntries.clear(),
+      db.ledgerGoals.clear(),
+      db.importBatches.clear(),
     ]);
+    const meta = await db.ledgerMeta.get("primary");
+    await db.ledgerMeta.put({ id: "primary", revision: (meta?.revision ?? 0) + 1 });
   });
 }
