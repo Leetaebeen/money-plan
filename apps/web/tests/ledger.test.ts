@@ -149,6 +149,20 @@ test("goal projections use future payment dates, actual assets, and zero return"
   data.accounts[1]!.openingBalance = null;
   assert.equal(goalMetrics(goal, data), null);
 });
+test("goal assets include negative account balances instead of overstating progress", () => {
+  const data = fixture();
+  data.accounts[0]!.openingBalance = -2000000;
+  const goal = { ...data.goals[0]!, target: 9000000, accountIds: ["cash", "save"] };
+  const metrics = goalMetrics(goal, data, "2026-01-25")!;
+  assert.equal(metrics.saved, 8000000);
+  assert.equal(metrics.remaining, 1000000);
+  assert.equal(metrics.paymentCount, 1);
+  assert.equal(metrics.projected, "2026-02-25");
+  const deficit = goalMetrics({ ...goal, accountIds: ["cash"] }, data, "2026-01-25")!;
+  assert.equal(deficit.saved, -2000000);
+  assert.equal(deficit.remaining, 11000000);
+});
+
 test("schema validation prevents duplicate goal assets, missing links, and broken transfer pairs", () => {
   const data = fixture();
   validateLedger(data);
@@ -304,6 +318,13 @@ test("concurrent writes and restore use revisions, and invalid restores preserve
   const bad = fixture();
   bad.entries = [entry({ accountId: "missing" })];
   await assert.rejects(restoreLedger(first.revision, bad));
+  bad.entries = [entry({ date: "2025-12-31" })];
+  await assert.rejects(restoreLedger(first.revision, bad), /기준일/);
+  const numericAccount = fixture();
+  numericAccount.accounts[0]!.id = "1";
+  numericAccount.entries = [entry({ accountId: 1 as unknown as string })];
+  await assert.rejects(restoreLedger(first.revision, numericAccount), /계좌/);
+  assert.deepEqual((await loadLedger()).data.entries, []);
   assert.equal((await loadLedger()).revision, first.revision);
   await deleteAllLocalData();
   await assert.rejects(restoreLedger(first.revision, fixture()), /다른 화면/);
