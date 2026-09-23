@@ -23,7 +23,7 @@ export function GoalCard({
         <>
           <progress
             max={goal.target}
-            value={Math.min(metrics.saved, goal.target)}
+            value={Math.max(0, Math.min(metrics.saved, goal.target))}
             aria-label={`${goal.name} 달성률`}
           />
           <div className="ledger-goal-stats">

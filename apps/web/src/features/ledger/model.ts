@@ -151,7 +151,7 @@ export function goalMetrics(goal: Goal, data: Ledger, asOf = today()) {
     .map((a) => (a ? balance(a, data.entries, asOf) : null));
   if (!balances.length || balances.some((b) => b === null)) return null;
   const saved = balances.reduce<number>(
-    (sum, b) => sum + Math.max(0, b ?? 0),
+    (sum, b) => sum + (b ?? 0),
     0,
   );
   const remaining = Math.max(0, goal.target - saved);
@@ -254,11 +254,13 @@ export function validateLedger(value: unknown): asserts value is Ledger {
   const accounts = value.accounts as Account[];
   unique(accounts);
   const accountIds = new Set(accounts.map((a) => a.id));
+  const accountById = new Map(accounts.map((a) => [a.id, a]));
   for (const b of value.batches) {
     record(b);
     text(b.id);
     if (
-      !accountIds.has(String(b.accountId)) ||
+      typeof b.accountId !== "string" ||
+      !accountIds.has(b.accountId) ||
       typeof b.hash !== "string" ||
       !/^[a-f0-9]{64}$/.test(b.hash) ||
       typeof b.importedAt !== "string" ||
@@ -288,11 +290,14 @@ export function validateLedger(value: unknown): asserts value is Ledger {
     if (
       e.amount === 0 ||
       !validDate(e.date) ||
-      !accountIds.has(String(e.accountId)) ||
+      typeof e.accountId !== "string" ||
+      !accountIds.has(e.accountId) ||
       typeof e.kind !== "string" ||
       !Object.hasOwn(kinds, e.kind)
     )
       throw new Error("거래의 날짜·계좌·종류를 확인해 주세요.");
+    if (e.date < accountById.get(e.accountId)!.openingDate)
+      throw new Error("계좌의 잔액 기준일보다 이전 거래가 있습니다.");
     if (
       (e.kind === "EXPENSE" && e.amount > 0) ||
       ((e.kind === "INCOME" || e.kind === "REFUND") && e.amount < 0)
