@@ -3,7 +3,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const repositoryBase = "/money-plan/";
-const outputDirectory = path.resolve(__dirname, "../apps/web/dist");
+const outputDirectory = path.resolve(__dirname, "..", process.argv[2] || "apps/web/dist");
 
 function readOutput(relativePath) {
   const absolutePath = path.join(outputDirectory, relativePath);

@@ -2,7 +2,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const outputDirectory = path.resolve(__dirname, "../apps/web/dist");
+const outputDirectory = path.resolve(__dirname, "..", process.argv[2] || "apps/web/dist");
 
 function readOutput(relativePath) {
   const absolutePath = path.join(outputDirectory, relativePath);
