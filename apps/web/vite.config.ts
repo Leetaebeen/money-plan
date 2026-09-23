@@ -20,7 +20,7 @@ export default defineConfig({
       manifest: {
         name: "머니플랜",
         short_name: "머니플랜",
-        description: "월급과 여윳돈을 직접 선택한 기준에 따라 나눠보는 예산 도구",
+        description: "계좌와 거래를 정리하고 목표 금액까지의 저축을 계획하는 개인 가계부",
         theme_color: "#173f36",
         background_color: "#f5f3ed",
         display: "standalone",
