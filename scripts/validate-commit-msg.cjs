@@ -4,7 +4,7 @@
 const fs = require('node:fs');
 const { execFileSync } = require('node:child_process');
 
-const HEADER_PATTERN = /^(feat|fix|security|refactor|perf|test|docs|build|ci|chore|style)(\([a-z0-9][a-z0-9._/-]*\))?!?: (\S.*)$/u;
+const HEADER_PATTERN = /^(feat|fix|security|refactor|perf|test|docs|build|ci|chore|style)(\([a-z0-9][a-z0-9._/-]*\))?!?[.:] (\S.*)$/u;
 
 function normalizeMessage(rawMessage) {
   return rawMessage
@@ -29,7 +29,7 @@ function validateMessage(rawMessage) {
   const errors = [];
 
   if (!HEADER_PATTERN.test(subject)) {
-    errors.push('제목은 "type: 요약" 또는 "type(scope): 요약" 형식이어야 합니다.');
+    errors.push('제목은 "type. 요약" 또는 "type(scope). 요약" 형식이어야 합니다. 기존 콜론(:) 형식도 허용합니다.');
   }
 
   if (lines.length < 3 || lines[1] !== '') {
@@ -128,7 +128,7 @@ function runCli() {
 
   console.error('\n커밋 메시지 형식 오류:\n');
   errors.forEach((error) => console.error(`- ${error}`));
-  console.error('\n예시:\n\nfeat: 기능 요약\n\n- 주요 변경\n  - 세부 변경\n');
+  console.error('\n예시:\n\nfeat. 기능 요약\n\n- 주요 변경\n  - 세부 변경\n');
   process.exit(1);
 }
 
