@@ -1,4 +1,7 @@
-html:has(.ledger), body:has(.ledger) { min-width: 0; }
+html:has(.ledger),
+body:has(.ledger) {
+  min-width: 0;
+}
 .ledger {
   --lg-ink: #213c35;
   --lg-soft: #63746d;
@@ -33,7 +36,9 @@ html:has(.ledger), body:has(.ledger) { min-width: 0; }
   letter-spacing: -1px;
   font-weight: 750;
 }
-.ledger h1[tabindex="-1"]:focus { outline: none; }
+.ledger h1[tabindex="-1"]:focus {
+  outline: none;
+}
 .ledger h2 {
   font-size: 21px;
   letter-spacing: -0.6px;
@@ -154,8 +159,13 @@ html:has(.ledger), body:has(.ledger) { min-width: 0; }
   gap: 12px;
   margin: 6px 0 28px;
 }
-.ledger-page-heading > div { min-width: 0; }
-.ledger-page-heading > button { flex-shrink: 0; white-space: nowrap; }
+.ledger-page-heading > div {
+  min-width: 0;
+}
+.ledger-page-heading > button {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
 .ledger-eyebrow {
   display: block;
   font-size: 11px;
@@ -797,7 +807,7 @@ html:has(.ledger), body:has(.ledger) { min-width: 0; }
     right: 0;
     z-index: 20;
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     border-top: 1px solid var(--lg-line);
     background: #fafbf7f5;
     padding: 7px 8px calc(8px + env(safe-area-inset-bottom));
@@ -848,5 +858,91 @@ html:has(.ledger), body:has(.ledger) { min-width: 0; }
   .ledger * {
     scroll-behavior: auto !important;
     transition: none !important;
+  }
+}
+
+.ledger-salary-home {
+  margin-bottom: 30px;
+}
+.ledger-salary .ledger-panel {
+  margin-bottom: 22px;
+}
+.ledger-salary-summary {
+  border-top: 4px solid var(--lg-green);
+}
+.ledger-budget-breakdown {
+  margin: 20px 0;
+}
+.ledger-budget-breakdown > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 10px 0;
+}
+.ledger-budget-breakdown dt {
+  color: var(--lg-soft);
+}
+.ledger-budget-breakdown dd {
+  margin: 0;
+  font-weight: 700;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.ledger-budget-subtotal {
+  border-top: 1px solid var(--lg-line);
+  margin-top: 8px;
+}
+.ledger-salary-route {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--lg-line);
+}
+.ledger-salary-route h4 {
+  margin: 8px 0 0;
+}
+.ledger-salary-route strong {
+  font-size: 21px;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.ledger-salary-route .ledger-note {
+  margin: 6px 0 0;
+}
+.ledger-funding-goal {
+  background: #f5f7f1;
+  border-radius: 12px;
+  padding: 20px;
+}
+.ledger-funding-goal h4 {
+  margin: 0;
+  font-size: 18px;
+}
+.ledger-salary .ledger-fields small {
+  color: var(--lg-soft);
+  font-weight: 400;
+}
+@media (max-width: 650px) {
+  .ledger-salary .ledger-section-title {
+    flex-wrap: wrap;
+  }
+  .ledger-budget-breakdown > div {
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .ledger-budget-breakdown dd {
+    margin-left: auto;
+  }
+  .ledger-salary-route {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .ledger-salary-route strong {
+    margin-left: auto;
+  }
+  .ledger-funding-goal {
+    padding: 16px;
   }
 }

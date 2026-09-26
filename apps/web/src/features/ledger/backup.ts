@@ -1,4 +1,4 @@
-import { validateLedger, type Ledger } from "./model.ts";
+import { readLedgerBackup, validateLedger, type Ledger } from "./model.ts";
 const encoder = new TextEncoder();
 const ITERATIONS = 210000;
 function encode(bytes: Uint8Array): string {
@@ -88,6 +88,5 @@ export async function decryptBackup(
     throw new Error("암호가 다르거나 파일이 손상되었습니다.");
   }
   const data: unknown = JSON.parse(new TextDecoder().decode(decoded));
-  validateLedger(data);
-  return data;
+  return readLedgerBackup(data);
 }

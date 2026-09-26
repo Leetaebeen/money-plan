@@ -1,5 +1,14 @@
 import { useState } from "react";
-import { goalMetrics, money, today, won, type Goal } from "./model";
+import {
+  goalMetrics,
+  goalMonthly,
+  goalUsesSpendingAccount,
+  planRemainder,
+  money,
+  today,
+  won,
+  type Goal,
+} from "./model";
 import { Empty, type PanelProps } from "./shared";
 export function GoalCard({
   goal,
@@ -53,8 +62,22 @@ export function GoalCard({
         </>
       )}
       <p className="ledger-note">
-        월 {won(goal.monthly)} · 매월 {goal.paymentDay}일 · 수익률 0% 가정
+        월 {won(goalMonthly(goal, data))} · 매월 {goal.paymentDay}일 · 수익률 0%
+        가정
+        {data.monthlyPlan && " · 월급 배분표 기준"}
       </p>
+      {data.monthlyPlan && planRemainder(data.monthlyPlan) < 0 && (
+        <p className="ledger-error">
+          월급 배분 총액이 예산을 초과합니다. 위 도달일은 필요한 배분액을
+          마련했을 때의 가정이에요.
+        </p>
+      )}
+      {data.monthlyPlan && goalUsesSpendingAccount(goal, data.monthlyPlan) && (
+        <p className="ledger-note">
+          월급·지출용 계좌가 목표에 포함돼 있어 앞으로 쓸 돈이 섞여 있습니다.
+          목표용 계좌를 분리해 주세요.
+        </p>
+      )}
     </>
   );
 }
@@ -167,7 +190,12 @@ export function Goals({ data, busy, change }: PanelProps) {
                 <input
                   required
                   inputMode="numeric"
-                  value={monthly}
+                  readOnly={!!data.monthlyPlan}
+                  value={
+                    data.monthlyPlan
+                      ? goalMonthly({ ...editing, accountIds: ids }, data)
+                      : monthly
+                  }
                   onChange={(e) => setMonthly(e.target.value)}
                 />
               </label>
@@ -209,6 +237,8 @@ export function Goals({ data, busy, change }: PanelProps) {
               })}
             </fieldset>
             <p className="ledger-note">
+              {data.monthlyPlan &&
+                "월 적립액은 월급 화면에서 연결 계좌에 배분한 금액을 사용합니다. "}
               선택한 계좌의 전체 잔액을 이 목표에 연결합니다. 같은 돈은 두
               목표에 중복 배정하지 않아요. 오늘 이후의 납입일부터 계산하며,
               예정액은 실제 잔액에 더하지 않습니다.
