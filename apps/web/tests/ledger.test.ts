@@ -21,6 +21,10 @@ import {
 } from "../src/features/ledger/monthly-plan.ts";
 import {
   parseCsv,
+  parseCsvDocument,
+  selectHeader,
+  suggestHeader,
+  statementDate,
   prepareRows,
   suggestColumns,
 } from "../src/features/ledger/csv.ts";
@@ -285,6 +289,108 @@ test("CSV duplicate candidates are reviewable, including repeats within a file",
         "2026-01-31",
       ),
     /각각/,
+  );
+});
+
+test("statement headers can follow notes and blank lines without losing original line numbers", () => {
+  const document = parseCsvDocument(
+    '거래내역\n조회기간 안내\n\n거래일자\t적요\t거래금액\t입출금구분\n20260901\t"점심\n식사"\t12000\t출금\n\n2026년 9월 2일\t급여\t3000000\t입금',
+  );
+  assert.equal(suggestHeader(document), 3);
+  const table = selectHeader(document, 3);
+  const rows = prepareRows(
+    table,
+    suggestColumns(table.headers),
+    "cash",
+    [],
+    "2026-09-01",
+    "2026-09-30",
+  );
+  assert.deepEqual(
+    rows.map((r) => [r.row, r.entry?.date, r.entry?.amount]),
+    [
+      [5, "2026-09-01", -12000],
+      [8, "2026-09-02", 3000000],
+    ],
+  );
+  assert.equal(rows[0]!.entry!.description, "점심\n식사");
+  assert.throws(() => selectHeader(document, 0), /CSV 열/);
+  assert.throws(() => selectHeader(document, -1), /제목/);
+  assert.throws(() => selectHeader(document, 50), /제목/);
+});
+
+test("directed amounts reject unknown directions and negative magnitudes instead of reversing balances", () => {
+  const table = parseCsv(
+    "날짜,내용,금액,구분\n2026-01-15,식사,12000,출금\n2026-01-15,식사,12000,출금\n2026-01-16,급여,1000,CREDIT\n2026-01-16,모호함,1000,이체\n2026-01-16,음수,-1000,출금",
+  );
+  const columns = suggestColumns(table.headers);
+  const rows = prepareRows(
+    table,
+    columns,
+    "cash",
+    [],
+    "2026-01-01",
+    "2026-01-31",
+  );
+  assert.equal(rows[0]!.entry!.amount, -12000);
+  assert.equal(rows[1]!.duplicate, true);
+  assert.equal(rows[1]!.selected, false);
+  assert.equal(rows[2]!.entry!.amount, 1000);
+  assert.ok(rows[3]!.error);
+  assert.ok(rows[4]!.error);
+  assert.throws(
+    () =>
+      prepareRows(
+        table,
+        { ...columns, direction: 2 },
+        "cash",
+        [],
+        "2026-01-01",
+        "2026-01-31",
+      ),
+    /각각/,
+  );
+  assert.throws(
+    () =>
+      prepareRows(
+        table,
+        { ...columns, date: NaN },
+        "cash",
+        [],
+        "2026-01-01",
+        "2026-01-31",
+      ),
+    /각각/,
+  );
+});
+
+test("statement dates are normalized strictly and delimiters can be overridden", () => {
+  for (const value of [
+    "20260901",
+    "2026. 9. 1",
+    "2026/9/1 09:30:01",
+    "2026년 9월 1일",
+    "2026-09-01T09:30:01.123",
+  ])
+    assert.equal(statementDate(value), "2026-09-01");
+  for (const value of [
+    "20260230",
+    "2026-09-01 garbage",
+    "2026-09-01 25:00",
+    "2026-09-01T09:30Z",
+  ])
+    assert.throws(() => statementDate(value));
+  const document = parseCsvDocument(
+    '안내\n날짜,내용,금액\n20260901,"커피\t메모",-1000',
+    ",",
+  );
+  assert.equal(selectHeader(document, 1).rows[0]![1], "커피\t메모");
+  assert.throws(
+    () =>
+      parseCsvDocument(
+        "날짜,내용,금액\n" + Array.from({ length: 101 }, () => "x").join(","),
+      ),
+    /100개/,
   );
 });
 test("v3 migration preserves existing v2 plans and seeds accounts without inventing balances", async () => {
