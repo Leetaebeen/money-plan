@@ -7,10 +7,19 @@ import { Accounts } from "./Accounts";
 import { Goals, GoalCard } from "./Goals";
 import { Transactions } from "./Transactions";
 import { BackupPanel } from "./BackupPanel";
+import { MonthlyPlan } from "./MonthlyPlan";
+import { monthlyMetrics } from "./monthly-plan";
 import "./ledger.css";
-type Screen = "home" | "transactions" | "goals" | "accounts" | "backup";
+type Screen =
+  | "home"
+  | "plan"
+  | "transactions"
+  | "goals"
+  | "accounts"
+  | "backup";
 const tabs: { id: Screen; label: string; symbol: string }[] = [
   { id: "home", label: "홈", symbol: "⌂" },
+  { id: "plan", label: "월급", symbol: "₩" },
   { id: "transactions", label: "거래", symbol: "↔" },
   { id: "goals", label: "목표", symbol: "◎" },
   { id: "accounts", label: "자산", symbol: "▥" },
@@ -96,6 +105,7 @@ export function LedgerApp() {
       </>
     );
   const data = snapshot?.data;
+  const monthly = data ? monthlyMetrics(data) : null;
   const known =
     data?.accounts
       .map((a) => balance(a, data.entries))
@@ -236,6 +246,29 @@ export function LedgerApp() {
                       <small>이번 달 입력·가져오기 기준</small>
                     </article>
                   </div>
+                  <section className="ledger-onboarding ledger-salary-home">
+                    <div>
+                      <span className="ledger-eyebrow">월급 배분 계획</span>
+                      <h3>
+                        {monthly
+                          ? monthly.deficit
+                            ? `계획보다 월 ${won(monthly.deficit)} 부족해요`
+                            : `매달 ${won(monthly.savings)} 모으는 계획`
+                          : "월급이 들어오면 어디에 얼마를 보낼까요?"}
+                      </h3>
+                      <p>
+                        {monthly
+                          ? `미배정 ${won(monthly.unassigned)} · 계좌별 배분과 목표 부족액을 함께 확인하세요.`
+                          : "쓸 돈부터 남기고, 적금·청약·ISA·연금으로 모을 돈을 나눠보세요."}
+                      </p>
+                    </div>
+                    <button
+                      className="ledger-btn ledger-primary"
+                      onClick={() => navigate("plan")}
+                    >
+                      {monthly ? "배분표 보기 →" : "월급 계획 만들기 →"}
+                    </button>
+                  </section>
                   <div className="ledger-section-title">
                     <div>
                       <h2>내 목표까지 얼마나 남았을까요?</h2>
@@ -312,6 +345,15 @@ export function LedgerApp() {
                     이전 월급 계산기 열기 ↗
                   </button>
                 </>
+              )}
+              {screen === "plan" && (
+                <MonthlyPlan
+                  data={data}
+                  busy={busy}
+                  change={change}
+                  onGoals={() => navigate("goals")}
+                  onAccounts={() => navigate("accounts")}
+                />
               )}
               {screen === "accounts" && (
                 <Accounts data={data} busy={busy} change={change} />

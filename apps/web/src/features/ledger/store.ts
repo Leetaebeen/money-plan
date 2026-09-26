@@ -16,9 +16,25 @@ const tables = () => [
   db.ledgerMeta,
 ];
 function ordered(data: Ledger): Ledger {
-  const roleOrder = ["SALARY", "FIXED", "LIVING", "HOUSING", "SAVINGS", "ISA", "PENSION"];
-  data.accounts.sort((a, b) => roleOrder.indexOf(a.role) - roleOrder.indexOf(b.role) || a.name.localeCompare(b.name, "ko"));
-  data.goals.sort((a, b) => a.deadline.localeCompare(b.deadline) || a.name.localeCompare(b.name, "ko"));
+  const roleOrder = [
+    "SALARY",
+    "FIXED",
+    "LIVING",
+    "HOUSING",
+    "SAVINGS",
+    "ISA",
+    "PENSION",
+  ];
+  data.accounts.sort(
+    (a, b) =>
+      roleOrder.indexOf(a.role) - roleOrder.indexOf(b.role) ||
+      a.name.localeCompare(b.name, "ko"),
+  );
+  data.goals.sort(
+    (a, b) =>
+      a.deadline.localeCompare(b.deadline) ||
+      a.name.localeCompare(b.name, "ko"),
+  );
   return data;
 }
 async function read(): Promise<LedgerSnapshot> {
@@ -31,7 +47,14 @@ async function read(): Promise<LedgerSnapshot> {
   ]);
   return {
     revision: meta?.revision ?? 0,
-    data: ordered({ schemaVersion: 1, accounts, entries, goals, batches }),
+    data: ordered({
+      schemaVersion: 2,
+      accounts,
+      entries,
+      goals,
+      batches,
+      monthlyPlan: meta?.monthlyPlan ?? null,
+    }),
   };
 }
 export async function loadLedger(): Promise<LedgerSnapshot> {
@@ -74,7 +97,11 @@ export async function mutateLedger(
     await sync(db.ledgerEntries, current.data.entries, next.entries);
     await sync(db.ledgerGoals, current.data.goals, next.goals);
     await sync(db.importBatches, current.data.batches, next.batches);
-    await db.ledgerMeta.put({ id: "primary", revision: revision + 1 });
+    await db.ledgerMeta.put({
+      id: "primary",
+      revision: revision + 1,
+      monthlyPlan: next.monthlyPlan,
+    });
     return { data: ordered(next), revision: revision + 1 };
   });
 }
@@ -130,5 +157,6 @@ export async function restoreLedger(revision: number, data: Ledger) {
     next.entries = structuredClone(data.entries);
     next.goals = structuredClone(data.goals);
     next.batches = structuredClone(data.batches);
+    next.monthlyPlan = structuredClone(data.monthlyPlan);
   });
 }

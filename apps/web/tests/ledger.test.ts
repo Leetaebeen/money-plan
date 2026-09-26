@@ -7,12 +7,18 @@ import {
   goalMetrics,
   initialLedger,
   money,
+  readLedgerBackup,
   reformatEntryAmount,
   validateLedger,
   validDate,
   type Entry,
   type Ledger,
+  type MonthlyPlan,
 } from "../src/features/ledger/model.ts";
+import {
+  monthlyMetrics,
+  salaryCycle,
+} from "../src/features/ledger/monthly-plan.ts";
 import {
   parseCsv,
   prepareRows,
@@ -29,7 +35,8 @@ import {
 } from "../src/features/ledger/store.ts";
 function fixture(): Ledger {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    monthlyPlan: null,
     accounts: [
       {
         id: "cash",
@@ -62,10 +69,22 @@ function fixture(): Ledger {
   };
 }
 test("reclassifying imported expenses as transfers preserves the outgoing balance", () => {
-  assert.equal(reformatEntryAmount("12,000", "EXPENSE", "TRANSFER", true), "-12000");
-  assert.equal(reformatEntryAmount("12000", "INCOME", "TRANSFER", true), "12000");
-  assert.equal(reformatEntryAmount("-12000", "TRANSFER", "EXPENSE", true), "12000");
-  assert.equal(reformatEntryAmount("12000", "EXPENSE", "TRANSFER", false), "12000");
+  assert.equal(
+    reformatEntryAmount("12,000", "EXPENSE", "TRANSFER", true),
+    "-12000",
+  );
+  assert.equal(
+    reformatEntryAmount("12000", "INCOME", "TRANSFER", true),
+    "12000",
+  );
+  assert.equal(
+    reformatEntryAmount("-12000", "TRANSFER", "EXPENSE", true),
+    "12000",
+  );
+  assert.equal(
+    reformatEntryAmount("12000", "EXPENSE", "TRANSFER", false),
+    "12000",
+  );
 });
 function entry(overrides: Partial<Entry> = {}): Entry {
   return {
@@ -79,6 +98,19 @@ function entry(overrides: Partial<Entry> = {}): Entry {
     batchId: null,
     pairId: null,
     ...overrides,
+  };
+}
+function monthlyPlan(): MonthlyPlan {
+  return {
+    salaryAccountId: "cash",
+    payday: 25,
+    netIncome: 3000000,
+    fixedAccountId: "cash",
+    fixedAmount: 800000,
+    livingAccountId: "cash",
+    livingAmount: 500000,
+    reserveAmount: 200000,
+    allocations: [{ accountId: "save", amount: 1000000 }],
   };
 }
 test.beforeEach(async () => {
@@ -152,13 +184,21 @@ test("goal projections use future payment dates, actual assets, and zero return"
 test("goal assets include negative account balances instead of overstating progress", () => {
   const data = fixture();
   data.accounts[0]!.openingBalance = -2000000;
-  const goal = { ...data.goals[0]!, target: 9000000, accountIds: ["cash", "save"] };
+  const goal = {
+    ...data.goals[0]!,
+    target: 9000000,
+    accountIds: ["cash", "save"],
+  };
   const metrics = goalMetrics(goal, data, "2026-01-25")!;
   assert.equal(metrics.saved, 8000000);
   assert.equal(metrics.remaining, 1000000);
   assert.equal(metrics.paymentCount, 1);
   assert.equal(metrics.projected, "2026-02-25");
-  const deficit = goalMetrics({ ...goal, accountIds: ["cash"] }, data, "2026-01-25")!;
+  const deficit = goalMetrics(
+    { ...goal, accountIds: ["cash"] },
+    data,
+    "2026-01-25",
+  )!;
   assert.equal(deficit.saved, -2000000);
   assert.equal(deficit.remaining, 11000000);
 });
@@ -251,13 +291,11 @@ test("v3 migration preserves existing v2 plans and seeds accounts without invent
   db.close();
   await db.delete();
   const legacy = new Dexie("money-plan");
-  legacy
-    .version(2)
-    .stores({
-      profiles: "id, updatedAt",
-      planRuns: "id, mode, selectedScenarioId, createdAt",
-      plannerDrafts: "id, updatedAt",
-    });
+  legacy.version(2).stores({
+    profiles: "id, updatedAt",
+    planRuns: "id, mode, selectedScenarioId, createdAt",
+    plannerDrafts: "id, updatedAt",
+  });
   await legacy
     .table("planRuns")
     .put({ id: "prior", mode: "MONTHLY_SALARY", createdAt: "2026-01-01" });
@@ -351,4 +389,188 @@ test("encrypted backup roundtrips every ledger field and rejects wrong passwords
   );
   await assert.rejects(encryptBackup(data, "short"), /8~256/);
   validateLedger(initialLedger());
+});
+
+test("monthly plans conserve salary, combine destinations, and derive goal funding from allocations", () => {
+  const data = fixture();
+  data.monthlyPlan = monthlyPlan();
+  const result = monthlyMetrics(data, "2026-01-25")!;
+  assert.equal(result.capacity, 1500000);
+  assert.equal(result.savings, 1000000);
+  assert.equal(result.unassigned, 500000);
+  assert.equal(result.deficit, 0);
+  assert.deepEqual(
+    result.routes.map((r) => [r.accountId, r.amount, r.transfer]),
+    [
+      ["cash", 2000000, false],
+      ["save", 1000000, true],
+    ],
+  );
+  assert.equal(
+    result.routes.reduce((sum, r) => sum + r.amount, 0),
+    data.monthlyPlan.netIncome,
+  );
+  assert.equal(result.goals[0]!.metrics!.monthly, 1000000);
+  assert.equal(result.goalGap, 666667);
+  assert.equal(result.additionalIncome, 166667);
+  assert.equal(
+    goalMetrics(data.goals[0]!, data, "2026-01-25")!.projected,
+    "2029-05-25",
+  );
+  assert.equal(data.entries.length, 0);
+  assert.equal(balance(data.accounts[1]!, data.entries), 10000000);
+});
+
+test("overspending is a deficit and missing or spent goal assets never imply feasibility", () => {
+  const data = fixture();
+  data.monthlyPlan = { ...monthlyPlan(), netIncome: 1000000 };
+  let result = monthlyMetrics(data, "2026-01-25")!;
+  assert.equal(result.capacity, -500000);
+  assert.equal(result.deficit, 1500000);
+  assert.equal(result.unassigned, 0);
+  assert.equal(result.additionalIncome, 2166667);
+  data.accounts[1]!.openingBalance = null;
+  result = monthlyMetrics(data, "2026-01-25")!;
+  assert.equal(result.goals[0]!.status, "unknown");
+  assert.equal(result.goalGap, null);
+  assert.equal(result.additionalIncome, null);
+  data.accounts[1]!.openingBalance = 10000000;
+  data.goals[0]!.deadline = "2026-01-25";
+  assert.equal(monthlyMetrics(data, "2026-01-25")!.goals[0]!.status, "overdue");
+  data.goals[0]!.accountIds = ["cash"];
+  assert.equal(
+    monthlyMetrics(data, "2026-01-25")!.goals[0]!.status,
+    "spending",
+  );
+  data.goals[0]!.accountIds = ["save"];
+  data.monthlyPlan.allocations = [];
+  assert.equal(goalMetrics(data.goals[0]!, data, "2026-01-25")!.monthly, 0);
+  assert.equal(
+    goalMetrics(data.goals[0]!, data, "2026-01-25")!.projected,
+    null,
+  );
+});
+
+test("monthly plans reject double allocations, broken account references, and invalid amounts", () => {
+  const data = fixture();
+  for (const override of [
+    { payday: 32 },
+    { payday: 0 },
+    { netIncome: -1 },
+    { livingAmount: 1.5 },
+    { salaryAccountId: "missing" },
+    { fixedAccountId: null },
+    {
+      allocations: [
+        { accountId: "save", amount: 1 },
+        { accountId: "save", amount: 2 },
+      ],
+    },
+    { allocations: [{ accountId: "cash", amount: 1 }] },
+    { allocations: [{ accountId: "save", amount: 0 }] },
+    { livingAccountId: "save" },
+  ]) {
+    data.monthlyPlan = { ...monthlyPlan(), ...override };
+    assert.throws(() => validateLedger(data));
+  }
+  data.monthlyPlan = { ...monthlyPlan(), fixedAccountId: null, fixedAmount: 0 };
+  validateLedger(data);
+});
+
+test("salary cycles handle month-end, leap years, and the payday boundary", () => {
+  assert.deepEqual(salaryCycle(31, "2028-02-28"), {
+    start: "2028-01-31",
+    next: "2028-02-29",
+  });
+  assert.deepEqual(salaryCycle(31, "2028-02-29"), {
+    start: "2028-02-29",
+    next: "2028-03-31",
+  });
+  assert.deepEqual(salaryCycle(31, "2026-02-28"), {
+    start: "2026-02-28",
+    next: "2026-03-31",
+  });
+  assert.deepEqual(salaryCycle(25, "2026-01-24"), {
+    start: "2025-12-25",
+    next: "2026-01-25",
+  });
+  assert.throws(() => salaryCycle(0));
+});
+
+test("monthly plans persist atomically, roundtrip backups, and legacy restore clears the plan", async () => {
+  let snapshot = await loadLedger();
+  snapshot = await restoreLedger(snapshot.revision, fixture());
+  snapshot = await mutateLedger(snapshot.revision, (data) => {
+    data.monthlyPlan = monthlyPlan();
+  });
+  assert.deepEqual((await loadLedger()).data.monthlyPlan, monthlyPlan());
+  assert.equal((await loadLedger()).data.entries.length, 0);
+  await assert.rejects(
+    mutateLedger(snapshot.revision - 1, (data) => {
+      data.monthlyPlan = null;
+    }),
+    /다른 화면/,
+  );
+  await assert.rejects(
+    mutateLedger(snapshot.revision, (data) => {
+      data.accounts = data.accounts.filter((a) => a.id !== "cash");
+    }),
+  );
+  assert.deepEqual((await loadLedger()).data.monthlyPlan, monthlyPlan());
+  const encrypted = await encryptBackup(
+    snapshot.data,
+    "synthetic-monthly-plan",
+  );
+  assert.deepEqual(
+    (await decryptBackup(encrypted, "synthetic-monthly-plan")).monthlyPlan,
+    monthlyPlan(),
+  );
+  const legacy = { ...fixture(), schemaVersion: 1 } as Record<string, unknown>;
+  delete legacy.monthlyPlan;
+  const upgraded = readLedgerBackup(legacy);
+  assert.equal(upgraded.schemaVersion, 2);
+  assert.equal(upgraded.monthlyPlan, null);
+  snapshot = await restoreLedger(snapshot.revision, upgraded);
+  assert.equal(snapshot.data.monthlyPlan, null);
+  assert.equal(snapshot.data.accounts.length, 2);
+  await mutateLedger(snapshot.revision, (data) => {
+    data.monthlyPlan = monthlyPlan();
+  });
+  await deleteAllLocalData();
+  assert.equal((await loadLedger()).data.monthlyPlan, null);
+  assert.throws(() => readLedgerBackup({ ...legacy, schemaVersion: 99 }));
+});
+
+test("v4 upgrades v3 ledger data and revision without inventing a monthly plan", async () => {
+  db.close();
+  await db.delete();
+  const previous = new Dexie("money-plan");
+  previous.version(3).stores({
+    profiles: "id, updatedAt",
+    planRuns: "id, mode, selectedScenarioId, createdAt",
+    plannerDrafts: "id, updatedAt",
+    accounts: "id",
+    ledgerEntries: "id, accountId, date, batchId, pairId",
+    ledgerGoals: "id",
+    importBatches: "id, accountId, &[accountId+hash]",
+    ledgerMeta: "id",
+  });
+  await previous.table("accounts").bulkPut(fixture().accounts);
+  await previous.table("ledgerEntries").add(entry());
+  await previous.table("ledgerGoals").bulkPut(fixture().goals);
+  await previous.table("ledgerMeta").put({ id: "primary", revision: 7 });
+  previous.close();
+  await db.open();
+  const snapshot = await loadLedger();
+  assert.equal(snapshot.revision, 7);
+  assert.equal(snapshot.data.monthlyPlan, null);
+  assert.equal(snapshot.data.accounts.length, 2);
+  assert.equal(snapshot.data.goals.length, 1);
+  assert.equal(
+    balance(
+      snapshot.data.accounts.find((a) => a.id === "cash")!,
+      snapshot.data.entries,
+    ),
+    999000,
+  );
 });

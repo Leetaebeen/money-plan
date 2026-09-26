@@ -46,12 +46,30 @@ export interface ImportBatch {
   importedAt: string;
   rowCount: number;
 }
+export interface MonthlyPlan {
+  salaryAccountId: string;
+  payday: number;
+  netIncome: number;
+  fixedAccountId: string | null;
+  fixedAmount: number;
+  livingAccountId: string | null;
+  livingAmount: number;
+  reserveAmount: number;
+  allocations: { accountId: string; amount: number }[];
+}
+export const savingRoles: AccountRole[] = [
+  "SAVINGS",
+  "HOUSING",
+  "ISA",
+  "PENSION",
+];
 export interface Ledger {
-  schemaVersion: 1;
+  schemaVersion: 2;
   accounts: Account[];
   entries: Entry[];
   goals: Goal[];
   batches: ImportBatch[];
+  monthlyPlan: MonthlyPlan | null;
 }
 export interface LedgerSnapshot {
   revision: number;
@@ -99,11 +117,27 @@ export function money(value: string, signed = false): number {
     throw new Error("금액은 1조 원 이내로 입력해 주세요.");
   return result;
 }
-export function reformatEntryAmount(value: string, previous: EntryKind, next: EntryKind, imported: boolean): string {
+export function reformatEntryAmount(
+  value: string,
+  previous: EntryKind,
+  next: EntryKind,
+  imported: boolean,
+): string {
   let parsed: number;
-  try { parsed = money(value, true); } catch { return value; }
-  const signed = previous === "EXPENSE" || (previous === "TRANSFER" && !imported) ? -Math.abs(parsed) : parsed;
-  return String(next === "ADJUSTMENT" || (next === "TRANSFER" && imported) ? signed : Math.abs(signed));
+  try {
+    parsed = money(value, true);
+  } catch {
+    return value;
+  }
+  const signed =
+    previous === "EXPENSE" || (previous === "TRANSFER" && !imported)
+      ? -Math.abs(parsed)
+      : parsed;
+  return String(
+    next === "ADJUSTMENT" || (next === "TRANSFER" && imported)
+      ? signed
+      : Math.abs(signed),
+  );
 }
 export function initialLedger(): Ledger {
   const defaults: [string, AccountRole][] = [
@@ -116,7 +150,7 @@ export function initialLedger(): Ledger {
     ["미래에셋 연금저축", "PENSION"],
   ];
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     accounts: defaults.map(([name, role]) => ({
       id: crypto.randomUUID(),
       name,
@@ -127,6 +161,7 @@ export function initialLedger(): Ledger {
     entries: [],
     goals: [],
     batches: [],
+    monthlyPlan: null,
   };
 }
 export function balance(
@@ -145,15 +180,49 @@ export function balance(
     )
     .reduce((sum, e) => sum + e.amount, account.openingBalance);
 }
+export function goalMonthly(goal: Goal, data: Ledger): number {
+  return data.monthlyPlan
+    ? data.monthlyPlan.allocations
+        .filter((a) => goal.accountIds.includes(a.accountId))
+        .reduce((sum, a) => sum + a.amount, 0)
+    : goal.monthly;
+}
+export function planUsesAccount(plan: MonthlyPlan | null, id: string): boolean {
+  return (
+    !!plan &&
+    (plan.salaryAccountId === id ||
+      plan.fixedAccountId === id ||
+      plan.livingAccountId === id ||
+      plan.allocations.some((a) => a.accountId === id))
+  );
+}
+export function planRemainder(plan: MonthlyPlan): number {
+  return (
+    plan.netIncome -
+    plan.fixedAmount -
+    plan.livingAmount -
+    plan.reserveAmount -
+    plan.allocations.reduce((sum, a) => sum + a.amount, 0)
+  );
+}
+export function goalUsesSpendingAccount(
+  goal: Goal,
+  plan: MonthlyPlan,
+): boolean {
+  return goal.accountIds.some(
+    (id) =>
+      id === plan.salaryAccountId ||
+      (plan.fixedAmount > 0 && id === plan.fixedAccountId) ||
+      (plan.livingAmount > 0 && id === plan.livingAccountId),
+  );
+}
 export function goalMetrics(goal: Goal, data: Ledger, asOf = today()) {
+  const monthly = goalMonthly(goal, data);
   const balances = goal.accountIds
     .map((id) => data.accounts.find((a) => a.id === id))
     .map((a) => (a ? balance(a, data.entries, asOf) : null));
   if (!balances.length || balances.some((b) => b === null)) return null;
-  const saved = balances.reduce<number>(
-    (sum, b) => sum + (b ?? 0),
-    0,
-  );
+  const saved = balances.reduce<number>((sum, b) => sum + (b ?? 0), 0);
   const remaining = Math.max(0, goal.target - saved);
   const date = new Date(`${asOf}T00:00:00Z`);
   const dates: string[] = [];
@@ -169,11 +238,7 @@ export function goalMetrics(goal: Goal, data: Ledger, asOf = today()) {
   const needed =
     remaining === 0 ? 0 : cycles ? Math.ceil(remaining / cycles) : null;
   const paymentCount =
-    remaining === 0
-      ? 0
-      : goal.monthly > 0
-        ? Math.ceil(remaining / goal.monthly)
-        : null;
+    remaining === 0 ? 0 : monthly > 0 ? Math.ceil(remaining / monthly) : null;
   const projected =
     paymentCount === 0
       ? asOf
@@ -187,7 +252,8 @@ export function goalMetrics(goal: Goal, data: Ledger, asOf = today()) {
     needed,
     projected,
     paymentCount,
-    gap: needed === null ? null : Math.max(0, needed - goal.monthly),
+    monthly,
+    gap: needed === null ? null : Math.max(0, needed - monthly),
   };
 }
 export function fingerprint(
@@ -225,7 +291,7 @@ function unique(items: { id: string }[]) {
 export function validateLedger(value: unknown): asserts value is Ledger {
   record(value);
   if (
-    value.schemaVersion !== 1 ||
+    value.schemaVersion !== 2 ||
     !Array.isArray(value.accounts) ||
     !Array.isArray(value.entries) ||
     !Array.isArray(value.goals) ||
@@ -356,4 +422,72 @@ export function validateLedger(value: unknown): asserts value is Ledger {
     }
   }
   unique(value.goals as Goal[]);
+  if (value.monthlyPlan !== null)
+    validateMonthlyPlan(value.monthlyPlan, accounts);
+}
+
+export function validateMonthlyPlan(
+  value: unknown,
+  accounts: Account[],
+): asserts value is MonthlyPlan {
+  record(value);
+  const byId = new Map(accounts.map((a) => [a.id, a]));
+  if (
+    typeof value.salaryAccountId !== "string" ||
+    !byId.has(value.salaryAccountId)
+  )
+    throw new Error("월급을 받는 계좌를 선택해 주세요.");
+  if (
+    !Number.isInteger(value.payday) ||
+    Number(value.payday) < 1 ||
+    Number(value.payday) > 31
+  )
+    throw new Error("월급날은 1~31일로 선택해 주세요.");
+  for (const field of [
+    "netIncome",
+    "fixedAmount",
+    "livingAmount",
+    "reserveAmount",
+  ])
+    amount(value[field]);
+  for (const [id, budget] of [
+    [value.fixedAccountId, value.fixedAmount],
+    [value.livingAccountId, value.livingAmount],
+  ]) {
+    if (id === null && budget === 0) continue;
+    if (typeof id !== "string" || !byId.has(id))
+      throw new Error("고정비·생활비를 보관할 계좌를 선택해 주세요.");
+  }
+  if (!Array.isArray(value.allocations) || value.allocations.length > 100)
+    throw new Error("저축·투자 배분 항목을 확인해 주세요.");
+  const used = new Set<string>();
+  for (const allocation of value.allocations) {
+    record(allocation);
+    const id = allocation.accountId;
+    if (typeof id !== "string" || !byId.has(id) || used.has(id))
+      throw new Error("저축·투자 계좌가 없거나 중복되었습니다.");
+    if (
+      !savingRoles.includes(byId.get(id)!.role) ||
+      id === value.salaryAccountId ||
+      (value.fixedAmount !== 0 && id === value.fixedAccountId) ||
+      (value.livingAmount !== 0 && id === value.livingAccountId)
+    )
+      throw new Error(
+        "저축·투자는 월급·고정비·생활비와 분리된 적금·청약·ISA·연금 계좌에 배분해 주세요.",
+      );
+    amount(allocation.amount);
+    if (allocation.amount === 0)
+      throw new Error("0원 배분 항목은 제외해 주세요.");
+    used.add(id);
+  }
+}
+
+export function readLedgerBackup(value: unknown): Ledger {
+  record(value);
+  const upgraded =
+    value.schemaVersion === 1
+      ? { ...value, schemaVersion: 2, monthlyPlan: null }
+      : value;
+  validateLedger(upgraded);
+  return upgraded;
 }
