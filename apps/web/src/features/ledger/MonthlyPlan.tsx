@@ -9,6 +9,7 @@ import {
 } from "./model";
 import { monthlyMetrics } from "./monthly-plan";
 import { SavingsActuals } from "./SavingsActuals";
+import { CycleBudget } from "./CycleBudget";
 import { Empty, type PanelProps } from "./shared";
 
 type Props = PanelProps & { onGoals: () => void; onAccounts: () => void };
@@ -266,6 +267,7 @@ export function MonthlyPlan({
       )}
       {plan && result && (
         <>
+          <CycleBudget data={data} />
           <SavingsActuals data={data} />
           {editing && (
             <p className="ledger-note">
