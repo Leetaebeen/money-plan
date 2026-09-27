@@ -30,6 +30,7 @@ import {
 } from "../src/features/ledger/csv.ts";
 import { decryptBackup, encryptBackup } from "../src/features/ledger/backup.ts";
 import { savingsActuals } from "../src/features/ledger/savings-actuals.ts";
+import { cycleBudget } from "../src/features/ledger/cycle-budget.ts";
 import { db, deleteAllLocalData } from "../src/persistence/db.ts";
 import {
   commitImport,
@@ -118,6 +119,104 @@ function monthlyPlan(): MonthlyPlan {
     allocations: [{ accountId: "save", amount: 1000000 }],
   };
 }
+
+test("salary cycle budget counts expenses and refunds once in shared accounts", () => {
+  const data = fixture();
+  data.monthlyPlan = monthlyPlan();
+  data.entries = [
+    entry({ date: "2026-01-25", amount: -300000 }),
+    entry({ date: "2026-02-10", kind: "REFUND", amount: 20000 }),
+    entry({ date: "2026-01-24", amount: -100000 }),
+    entry({ date: "2026-02-11", amount: -200000 }),
+    entry({ date: "2026-02-25", amount: -200000 }),
+    entry({ date: "2026-02-10", kind: "TRANSFER", amount: -900000 }),
+    entry({ date: "2026-02-10", kind: "INCOME", amount: 3000000 }),
+    entry({ date: "2026-02-10", kind: "ADJUSTMENT", amount: -10000 }),
+    entry({ date: "2026-02-10", accountId: "save", amount: -80000 }),
+  ];
+  const result = cycleBudget(data, "2026-02-10")!;
+  assert.equal(result.start, "2026-01-25");
+  assert.equal(result.end, "2026-02-24");
+  assert.equal(result.daysLeft, 15);
+  assert.equal(result.rows.length, 1);
+  assert.deepEqual(result.rows[0].purposes, ["고정비", "생활비"]);
+  assert.equal(result.rows[0].planned, 1300000);
+  assert.equal(result.rows[0].spent, 300000);
+  assert.equal(result.rows[0].refunded, 20000);
+  assert.equal(result.rows[0].remaining, 1020000);
+  assert.equal(result.rows[0].daily, null);
+});
+
+test("separate living budgets preserve overspending and floor the daily amount", () => {
+  const data = fixture();
+  data.accounts.push({
+    ...data.accounts[0],
+    id: "fixed",
+    name: "고정비",
+    role: "FIXED",
+  });
+  data.monthlyPlan = { ...monthlyPlan(), fixedAccountId: "fixed" };
+  data.entries = [
+    entry({ date: "2026-02-10", amount: -123456 }),
+    entry({ date: "2026-02-10", accountId: "fixed", amount: -900000 }),
+  ];
+  const result = cycleBudget(data, "2026-02-10")!;
+  assert.equal(result.rows[0].remaining, -100000);
+  assert.equal(result.rows[0].daily, null);
+  assert.equal(result.rows[1].remaining, 376544);
+  assert.equal(result.rows[1].daily, 25102);
+  data.entries.push(entry({ date: "2026-02-10", amount: -400000 }));
+  const overspent = cycleBudget(data, "2026-02-10")!.rows[1];
+  assert.equal(overspent.remaining, -23456);
+  assert.equal(overspent.daily, 0);
+});
+
+test("cycle budgets handle payday boundaries, leap years, and missing period history", () => {
+  const data = fixture();
+  data.monthlyPlan = {
+    ...monthlyPlan(),
+    payday: 31,
+    fixedAccountId: null,
+    fixedAmount: 0,
+  };
+  assert.equal(cycleBudget(data, "2028-02-28")!.daysLeft, 1);
+  const leap = cycleBudget(data, "2028-02-29")!;
+  assert.equal(leap.start, "2028-02-29");
+  assert.equal(leap.end, "2028-03-30");
+  assert.equal(leap.daysLeft, 31);
+  data.accounts[0].openingDate = "2026-02-01";
+  let row = cycleBudget(data, "2026-02-10")!.rows[0];
+  assert.equal(row.partial, true);
+  assert.equal(row.remaining, null);
+  assert.equal(row.daily, null);
+  data.accounts[0].openingDate = "2026-01-31";
+  data.accounts[0].openingBalance = null;
+  row = cycleBudget(data, "2026-02-10")!.rows[0];
+  assert.equal(row.remaining, 500000);
+  assert.equal(row.daily, 27777);
+  assert.throws(() => cycleBudget(data, "2026-02-30"));
+  data.monthlyPlan = null;
+  assert.equal(cycleBudget(data), null);
+});
+
+test("zero budgets show recorded overspending and refunds stay in their receipt cycle", () => {
+  const data = fixture();
+  data.monthlyPlan = {
+    ...monthlyPlan(),
+    fixedAccountId: null,
+    fixedAmount: 0,
+    livingAmount: 0,
+  };
+  data.entries = [entry({ date: "2026-01-25", amount: -10000 })];
+  assert.equal(cycleBudget(data, "2026-01-25")!.rows[0].remaining, -10000);
+  data.entries.push(
+    entry({ date: "2026-02-25", kind: "REFUND", amount: 10000 }),
+  );
+  const row = cycleBudget(data, "2026-02-25")!.rows[0];
+  assert.equal(row.spent, 0);
+  assert.equal(row.refunded, 10000);
+  assert.equal(row.remaining, 10000);
+});
 
 test("savings actuals net internal transfers without treating balances or returns as contributions", () => {
   const data = fixture();
