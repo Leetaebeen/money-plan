@@ -864,6 +864,19 @@ body:has(.ledger) {
 .ledger-salary-home {
   margin-bottom: 30px;
 }
+.ledger-actual-month {
+  display: grid;
+  gap: 6px;
+  max-width: 240px;
+}
+.ledger-actual-month input {
+  min-width: 0;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--lg-line);
+  border-radius: 8px;
+  font: inherit;
+}
 .ledger-salary .ledger-panel {
   margin-bottom: 22px;
 }
