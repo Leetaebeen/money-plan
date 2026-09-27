@@ -8,6 +8,7 @@ import {
   type MonthlyPlan as Plan,
 } from "./model";
 import { monthlyMetrics } from "./monthly-plan";
+import { SavingsActuals } from "./SavingsActuals";
 import { Empty, type PanelProps } from "./shared";
 
 type Props = PanelProps & { onGoals: () => void; onAccounts: () => void };
@@ -265,6 +266,7 @@ export function MonthlyPlan({
       )}
       {plan && result && (
         <>
+          <SavingsActuals data={data} />
           {editing && (
             <p className="ledger-note">
               아래는 마지막으로 저장한 계획입니다. 수정 내용은 저장 후 반영돼요.

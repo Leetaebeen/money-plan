@@ -29,6 +29,7 @@ import {
   suggestColumns,
 } from "../src/features/ledger/csv.ts";
 import { decryptBackup, encryptBackup } from "../src/features/ledger/backup.ts";
+import { savingsActuals } from "../src/features/ledger/savings-actuals.ts";
 import { db, deleteAllLocalData } from "../src/persistence/db.ts";
 import {
   commitImport,
@@ -117,6 +118,129 @@ function monthlyPlan(): MonthlyPlan {
     allocations: [{ accountId: "save", amount: 1000000 }],
   };
 }
+
+test("savings actuals net internal transfers without treating balances or returns as contributions", () => {
+  const data = fixture();
+  data.accounts.push({
+    ...data.accounts[1]!,
+    id: "isa",
+    name: "ISA",
+    role: "ISA",
+  });
+  data.monthlyPlan = monthlyPlan();
+  data.monthlyPlan.allocations.push({ accountId: "isa", amount: 200000 });
+  const transfer = (
+    id: string,
+    from: string,
+    to: string,
+    amount: number,
+    date = "2026-01-15",
+  ) => {
+    data.entries.push(
+      entry({
+        id: `${id}-out`,
+        accountId: from,
+        amount: -amount,
+        kind: "TRANSFER",
+        pairId: id,
+        date,
+      }),
+      entry({
+        id: `${id}-in`,
+        accountId: to,
+        amount,
+        kind: "TRANSFER",
+        pairId: id,
+        date,
+      }),
+    );
+  };
+  transfer("deposit", "cash", "save", 500000);
+  transfer("internal", "save", "isa", 300000);
+  transfer("withdrawal", "save", "cash", 100000);
+  transfer("future", "cash", "save", 999999, "2026-01-31");
+  transfer("nextMonth", "cash", "save", 999999, "2026-02-01");
+  data.entries.push(
+    entry({ id: "interest", accountId: "save", amount: 2000, kind: "INCOME" }),
+    entry({
+      id: "valuation",
+      accountId: "isa",
+      amount: 50000,
+      kind: "ADJUSTMENT",
+    }),
+  );
+  validateLedger(data);
+  const result = savingsActuals(data, "2026-01", "2026-01-25");
+  assert.equal(result.total.net, 400000);
+  assert.equal(result.total.planned, 1200000);
+  assert.equal(result.total.remaining, 800000);
+  assert.equal(
+    result.accountRows.find((a) => a.account.id === "save")!.net,
+    100000,
+  );
+  assert.equal(
+    result.accountRows.find((a) => a.account.id === "isa")!.net,
+    300000,
+  );
+  assert.equal(result.goalRows[0]!.remaining, 900000);
+  assert.equal(result.end, "2026-01-25");
+  assert.equal(savingsActuals(data, "2026-01", "2026-03-01").end, "2026-01-31");
+});
+
+test("unlinked imported transfers and partial account coverage leave savings shortfalls unknown", () => {
+  const data = fixture();
+  data.monthlyPlan = monthlyPlan();
+  data.entries = [
+    entry({ accountId: "save", amount: 400000, kind: "TRANSFER" }),
+  ];
+  let result = savingsActuals(data, "2026-01", "2026-01-25");
+  assert.equal(result.total.net, 400000);
+  assert.equal(result.total.unpaired, 1);
+  assert.equal(result.total.remaining, null);
+  assert.equal(result.goalRows[0]!.remaining, null);
+  data.entries = [];
+  data.accounts[1]!.openingDate = "2026-01-10";
+  result = savingsActuals(data, "2026-01", "2026-01-25");
+  assert.equal(result.total.partial, true);
+  assert.equal(result.total.remaining, null);
+  data.accounts[1]!.openingDate = "2026-01-01";
+  data.accounts[1]!.openingBalance = null;
+  assert.equal(
+    savingsActuals(data, "2026-01", "2026-01-25").total.remaining,
+    1000000,
+  );
+  data.goals[0]!.accountIds = ["cash"];
+  assert.equal(
+    savingsActuals(data, "2026-01", "2026-01-25").goalRows[0]!.supported,
+    false,
+  );
+});
+
+test("net withdrawals increase savings shortfalls and invalid periods are rejected", () => {
+  const data = fixture();
+  data.monthlyPlan = monthlyPlan();
+  data.entries = [
+    entry({
+      id: "out",
+      accountId: "save",
+      amount: -200000,
+      kind: "TRANSFER",
+      pairId: "p",
+    }),
+    entry({
+      id: "in",
+      accountId: "cash",
+      amount: 200000,
+      kind: "TRANSFER",
+      pairId: "p",
+    }),
+  ];
+  const result = savingsActuals(data, "2026-01", "2026-01-25");
+  assert.equal(result.total.net, -200000);
+  assert.equal(result.total.remaining, 1200000);
+  for (const month of ["", "2026-13", "2026-02", "26-01"])
+    assert.throws(() => savingsActuals(data, month, "2026-01-25"));
+});
 test.beforeEach(async () => {
   db.close();
   await db.delete();
