@@ -10,6 +10,7 @@ import {
   type Goal,
 } from "./model";
 import { Empty, type PanelProps } from "./shared";
+import { GoalScenario } from "./GoalScenario";
 export function GoalCard({
   goal,
   data,
@@ -274,6 +275,7 @@ export function Goals({ data, busy, change }: PanelProps) {
         {data.goals.map((goal) => (
           <article className="ledger-panel" key={goal.id}>
             <GoalCard goal={goal} data={data} />
+            <GoalScenario goal={goal} data={data} />
             <div className="ledger-actions">
               <button
                 className="ledger-text-btn"
