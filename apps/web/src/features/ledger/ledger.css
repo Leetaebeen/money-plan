@@ -924,6 +924,19 @@ body:has(.ledger) {
 .ledger-salary-route .ledger-note {
   margin: 6px 0 0;
 }
+.ledger-goal-scenario {
+  margin-block: 1rem;
+  border-top: 1px solid var(--ledger-border, #dce3dd);
+  padding-top: 0.75rem;
+}
+.ledger-goal-scenario summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding-block: 0.5rem;
+}
+.ledger-goal-scenario .ledger-form {
+  margin-block: 0.75rem;
+}
 .ledger-funding-goal {
   background: #f5f7f1;
   border-radius: 12px;

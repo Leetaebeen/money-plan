@@ -31,6 +31,7 @@ import {
 import { decryptBackup, encryptBackup } from "../src/features/ledger/backup.ts";
 import { savingsActuals } from "../src/features/ledger/savings-actuals.ts";
 import { cycleBudget } from "../src/features/ledger/cycle-budget.ts";
+import { goalScenario } from "../src/features/ledger/goal-scenario.ts";
 import { db, deleteAllLocalData } from "../src/persistence/db.ts";
 import {
   commitImport,
@@ -119,6 +120,122 @@ function monthlyPlan(): MonthlyPlan {
     allocations: [{ accountId: "save", amount: 1000000 }],
   };
 }
+
+test("goal scenarios compare payment dates and expose the funding needed without modifying data", () => {
+  const data = fixture();
+  data.monthlyPlan = monthlyPlan();
+  const snapshot = structuredClone(data);
+  const result = goalScenario(data, "goal", 1000000, 200000, "2026-01-25");
+  assert.equal(result.before.monthly, 1000000);
+  assert.equal(result.before.projected, "2029-05-25");
+  assert.equal(result.after.projected, "2027-09-25");
+  assert.equal(result.monthsEarlier, 20);
+  assert.equal(result.meetsDeadline, true);
+  assert.equal(result.after.gap, 0);
+  assert.deepEqual(result.funding, {
+    currentDeficit: 0,
+    additionalNeeded: 300000,
+    unassigned: 0,
+    livingAfter: 300000,
+  });
+  assert.deepEqual(data, snapshot);
+});
+
+test("goal scenarios preserve existing deficits and never spend another goal's allocations", () => {
+  const data = fixture();
+  data.accounts.push({ ...data.accounts[1], id: "other", name: "다른 목표" });
+  data.goals.push({
+    ...data.goals[0],
+    id: "other-goal",
+    accountIds: ["other"],
+  });
+  data.monthlyPlan = monthlyPlan();
+  data.monthlyPlan.allocations.push({ accountId: "other", amount: 500000 });
+  const snapshot = structuredClone(data);
+  assert.equal(
+    goalScenario(data, "goal", 100000, 0, "2026-01-25").funding!
+      .additionalNeeded,
+    100000,
+  );
+  assert.deepEqual(data, snapshot);
+  data.monthlyPlan = { ...monthlyPlan(), netIncome: 1000000 };
+  const funding = goalScenario(
+    data,
+    "goal",
+    100000,
+    100000,
+    "2026-01-25",
+  ).funding!;
+  assert.equal(funding.currentDeficit, 1500000);
+  assert.equal(funding.additionalNeeded, 1500000);
+});
+
+test("goal scenarios use available unassigned money and leave the unused amount explicit", () => {
+  const data = fixture();
+  data.monthlyPlan = monthlyPlan();
+  const result = goalScenario(data, "goal", 100000, 50000, "2026-01-25");
+  assert.equal(result.funding!.additionalNeeded, 0);
+  assert.equal(result.funding!.unassigned, 450000);
+  assert.equal(result.funding!.livingAfter, 450000);
+  assert.equal(result.meetsDeadline, false);
+  assert.equal(result.after.gap, 566667);
+});
+
+test("goal scenarios distinguish no contribution, no budget, and elapsed deadlines", () => {
+  const data = fixture();
+  data.goals[0].monthly = 0;
+  data.goals[0].target = 10000400;
+  let result = goalScenario(data, "goal", 0, 0, "2026-01-25");
+  assert.equal(result.after.projected, null);
+  assert.equal(result.funding, null);
+  result = goalScenario(data, "goal", 400, 0, "2026-01-25");
+  assert.equal(result.after.projected, "2026-02-25");
+  assert.equal(result.monthsEarlier, null);
+  data.goals[0].deadline = "2026-01-25";
+  result = goalScenario(data, "goal", 400, 0, "2026-01-25");
+  assert.equal(result.after.gap, null);
+  assert.equal(result.meetsDeadline, false);
+  assert.throws(() => goalScenario(data, "goal", 400, 100), /생활비/);
+});
+
+test("goal scenarios reject missing balances, spending accounts, and achieved goals", () => {
+  const data = fixture();
+  data.monthlyPlan = monthlyPlan();
+  data.accounts[1].openingBalance = null;
+  assert.throws(
+    () => goalScenario(data, "goal", 100000, 0, "2026-01-25"),
+    /잔액/,
+  );
+  data.accounts[1].openingBalance = 10000000;
+  data.accounts[1].openingDate = "2026-02-01";
+  assert.throws(
+    () => goalScenario(data, "goal", 100000, 0, "2026-01-25"),
+    /잔액/,
+  );
+  data.goals[0].accountIds = ["cash"];
+  assert.throws(() => goalScenario(data, "goal", 100000, 0), /쓸 돈/);
+  data.goals[0].accountIds = ["save"];
+  data.goals[0].target = 10000000;
+  assert.throws(
+    () => goalScenario(data, "goal", 100000, 0, "2026-03-01"),
+    /이미 달성/,
+  );
+});
+
+test("goal scenario inputs reject invalid amounts, missing goals, and excessive living cuts", () => {
+  const data = fixture();
+  data.monthlyPlan = monthlyPlan();
+  for (const value of [-1, 0.5, NaN, Infinity, 1000000000001]) {
+    assert.throws(() => goalScenario(data, "goal", value, 0));
+    assert.throws(() => goalScenario(data, "goal", 0, value));
+  }
+  assert.throws(() => goalScenario(data, "goal", 100000, 500001), /생활비/);
+  assert.throws(() => goalScenario(data, "missing", 100000, 0), /목표/);
+  assert.throws(
+    () => goalScenario(data, "goal", 100000, 0, "2026-02-30"),
+    /기준일/,
+  );
+});
 
 test("salary cycle budget counts expenses and refunds once in shared accounts", () => {
   const data = fixture();
