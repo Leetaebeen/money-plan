@@ -192,6 +192,11 @@ export function Accounts({ data, busy, change }: PanelProps) {
                 <p className="ledger-note">월급 배분 계획에 사용 중</p>
               )}
               {!planUsesAccount(data.monthlyPlan, account.id) &&
+                !data.schedules.some(
+                  (s) =>
+                    s.accountId === account.id ||
+                    s.targetAccountId === account.id,
+                ) &&
                 !data.entries.some((e) => e.accountId === account.id) &&
                 !data.goals.some((g) => g.accountIds.includes(account.id)) &&
                 !data.batches.some((b) => b.accountId === account.id) && (

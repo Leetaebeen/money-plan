@@ -139,7 +139,8 @@ export function BackupPanel({ snapshot, busy, run }: Props) {
               <p>
                 계좌 {restore.data.accounts.length}개 · 거래{" "}
                 {restore.data.entries.length}건 · 목표{" "}
-                {restore.data.goals.length}개
+                {restore.data.goals.length}개 · 납부 일정{" "}
+                {restore.data.schedules.length}개
               </p>
               <p>
                 월급 배분 계획:{" "}

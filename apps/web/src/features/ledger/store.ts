@@ -1,5 +1,6 @@
 import type { Table } from "dexie";
 import { db } from "../../persistence/db.ts";
+import { reconcileSchedulePayments } from "./schedules.ts";
 import {
   initialLedger,
   today,
@@ -48,7 +49,8 @@ async function read(): Promise<LedgerSnapshot> {
   return {
     revision: meta?.revision ?? 0,
     data: ordered({
-      schemaVersion: 2,
+      schemaVersion: 3,
+      schedules: meta?.schedules ?? [],
       accounts,
       entries,
       goals,
@@ -92,6 +94,7 @@ export async function mutateLedger(
       );
     const next = structuredClone(current.data);
     change(next);
+    reconcileSchedulePayments(next);
     validateLedger(next);
     await sync(db.accounts, current.data.accounts, next.accounts);
     await sync(db.ledgerEntries, current.data.entries, next.entries);
@@ -101,6 +104,7 @@ export async function mutateLedger(
       id: "primary",
       revision: revision + 1,
       monthlyPlan: next.monthlyPlan,
+      schedules: next.schedules,
     });
     return { data: ordered(next), revision: revision + 1 };
   });
@@ -158,5 +162,6 @@ export async function restoreLedger(revision: number, data: Ledger) {
     next.goals = structuredClone(data.goals);
     next.batches = structuredClone(data.batches);
     next.monthlyPlan = structuredClone(data.monthlyPlan);
+    next.schedules = structuredClone(data.schedules);
   });
 }

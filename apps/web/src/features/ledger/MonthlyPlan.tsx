@@ -10,6 +10,7 @@ import {
 import { monthlyMetrics } from "./monthly-plan";
 import { SavingsActuals } from "./SavingsActuals";
 import { CycleBudget } from "./CycleBudget";
+import { ScheduledPayments } from "./ScheduledPayments";
 import { Empty, type PanelProps } from "./shared";
 
 type Props = PanelProps & { onGoals: () => void; onAccounts: () => void };
@@ -96,6 +97,7 @@ export function MonthlyPlan({
           </button>
         )}
       </div>
+      <ScheduledPayments data={data} busy={busy} change={change} />
       {editing && (
         <form className="ledger-panel ledger-form" onSubmit={save}>
           <fieldset disabled={busy}>

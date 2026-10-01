@@ -14,6 +14,7 @@ import {
   type Entry,
   type Ledger,
   type MonthlyPlan,
+  type PaymentSchedule,
 } from "../src/features/ledger/model.ts";
 import {
   monthlyMetrics,
@@ -32,6 +33,13 @@ import { decryptBackup, encryptBackup } from "../src/features/ledger/backup.ts";
 import { savingsActuals } from "../src/features/ledger/savings-actuals.ts";
 import { cycleBudget } from "../src/features/ledger/cycle-budget.ts";
 import { goalScenario } from "../src/features/ledger/goal-scenario.ts";
+import {
+  scheduleDate,
+  scheduleMonth,
+  recordScheduledPayment,
+  paymentCandidates,
+  reconcileSchedulePayments,
+} from "../src/features/ledger/schedules.ts";
 import { db, deleteAllLocalData } from "../src/persistence/db.ts";
 import {
   commitImport,
@@ -42,7 +50,8 @@ import {
 } from "../src/features/ledger/store.ts";
 function fixture(): Ledger {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
+    schedules: [],
     monthlyPlan: null,
     accounts: [
       {
@@ -120,6 +129,297 @@ function monthlyPlan(): MonthlyPlan {
     allocations: [{ accountId: "save", amount: 1000000 }],
   };
 }
+
+function scheduled(overrides: Partial<PaymentSchedule> = {}): PaymentSchedule {
+  return {
+    id: "bill",
+    name: "통신비",
+    accountId: "cash",
+    targetAccountId: null,
+    amount: 50000,
+    day: 31,
+    startDate: "2026-01-01",
+    endDate: null,
+    payments: [],
+    ...overrides,
+  };
+}
+
+test("scheduled dates clamp month ends and honor inclusive recurrence limits", () => {
+  const s = scheduled();
+  assert.equal(scheduleDate(s, "2026-02"), "2026-02-28");
+  assert.equal(scheduleDate(s, "2028-02"), "2028-02-29");
+  assert.equal(scheduleDate(s, "2026-04"), "2026-04-30");
+  assert.equal(
+    scheduleDate(
+      { ...s, startDate: "2026-02-28", endDate: "2026-02-28" },
+      "2026-02",
+    ),
+    "2026-02-28",
+  );
+  assert.equal(
+    scheduleDate({ ...s, startDate: "2026-03-01" }, "2026-02"),
+    null,
+  );
+  assert.equal(scheduleDate({ ...s, endDate: "2026-02-27" }, "2026-02"), null);
+  assert.throws(() => scheduleDate(s, "2026-13"));
+});
+
+test("scheduled expenses create one real transaction and cannot be paid twice", () => {
+  const data = fixture();
+  data.schedules.push(scheduled());
+  recordScheduledPayment(
+    data,
+    "bill",
+    "2026-01-31",
+    { date: "2026-02-02" },
+    "2026-02-02",
+  );
+  validateLedger(data);
+  assert.equal(data.entries.length, 1);
+  assert.equal(data.entries[0].kind, "EXPENSE");
+  assert.equal(balance(data.accounts[0], data.entries, "2026-02-02"), 950000);
+  assert.equal(scheduleMonth(data, "2026-01", "2026-02-02")[0].status, "paid");
+  assert.throws(
+    () =>
+      recordScheduledPayment(
+        data,
+        "bill",
+        "2026-01-31",
+        { date: "2026-02-02" },
+        "2026-02-02",
+      ),
+    /이미/,
+  );
+  assert.equal(data.entries.length, 1);
+});
+
+test("scheduled savings create paired transfers and include real savings actuals", () => {
+  const data = fixture();
+  data.monthlyPlan = monthlyPlan();
+  data.schedules.push(scheduled({ targetAccountId: "save" }));
+  recordScheduledPayment(
+    data,
+    "bill",
+    "2026-01-31",
+    { date: "2026-01-30" },
+    "2026-01-30",
+  );
+  validateLedger(data);
+  assert.equal(data.entries.length, 2);
+  assert.equal(data.entries[0].pairId, data.entries[1].pairId);
+  assert.equal(
+    data.entries.reduce((n, e) => n + e.amount, 0),
+    0,
+  );
+  assert.equal(savingsActuals(data, "2026-01", "2026-01-30").total.net, 50000);
+  assert.equal(balance(data.accounts[1], data.entries, "2026-01-30"), 10050000);
+});
+
+test("existing payment links avoid duplicate entries and reject reused or mismatched payments", () => {
+  const data = fixture();
+  data.schedules.push(scheduled(), scheduled({ id: "second" }));
+  data.entries.push(entry({ amount: -50000, date: "2026-01-31" }));
+  assert.throws(
+    () =>
+      recordScheduledPayment(
+        data,
+        "bill",
+        "2026-01-31",
+        { date: "2026-01-31" },
+        "2026-01-31",
+      ),
+    /기존 거래/,
+  );
+  recordScheduledPayment(
+    data,
+    "bill",
+    "2026-01-31",
+    { entryId: "entry" },
+    "2026-01-31",
+  );
+  assert.equal(data.entries.length, 1);
+  assert.equal(
+    paymentCandidates(data, data.schedules[1], "2026-01-31").length,
+    0,
+  );
+  assert.throws(() =>
+    recordScheduledPayment(
+      data,
+      "second",
+      "2026-01-31",
+      { entryId: "entry" },
+      "2026-01-31",
+    ),
+  );
+  data.schedules[0].payments = [];
+  data.entries[0].amount = -40000;
+  assert.throws(() =>
+    recordScheduledPayment(
+      data,
+      "bill",
+      "2026-01-31",
+      { entryId: "entry" },
+      "2026-01-31",
+    ),
+  );
+});
+
+test("payment validation rejects impossible dates, dangling schedules and corrupted backup links", () => {
+  const data = fixture();
+  data.schedules.push(scheduled());
+  assert.throws(() =>
+    recordScheduledPayment(
+      data,
+      "bill",
+      "2026-01-30",
+      { date: "2026-01-30" },
+      "2026-01-31",
+    ),
+  );
+  assert.throws(() =>
+    recordScheduledPayment(
+      data,
+      "bill",
+      "2026-01-31",
+      { date: "2026-02-01" },
+      "2026-01-31",
+    ),
+  );
+  assert.throws(() =>
+    recordScheduledPayment(
+      data,
+      "bill",
+      "2026-01-31",
+      { date: "2025-12-31" },
+      "2026-01-31",
+    ),
+  );
+  for (const override of [
+    { amount: 0 },
+    { day: 32 },
+    { accountId: "missing" },
+    { targetAccountId: "cash" },
+    { endDate: "2025-12-31" },
+    { payments: [{ dueDate: "2026-01-31", entryId: "missing" }] },
+  ]) {
+    const broken = structuredClone(data);
+    Object.assign(broken.schedules[0], override);
+    assert.throws(() => readLedgerBackup(broken));
+  }
+  recordScheduledPayment(
+    data,
+    "bill",
+    "2026-01-31",
+    { date: "2026-01-31" },
+    "2026-01-31",
+  );
+  data.schedules[0].payments.push({ ...data.schedules[0].payments[0] });
+  assert.throws(() => validateLedger(data));
+});
+
+test("changed or deleted payment entries return schedules to unlinked without inventing transactions", () => {
+  const data = fixture();
+  data.schedules.push(scheduled({ day: 25 }));
+  assert.equal(
+    scheduleMonth(data, "2026-01", "2026-01-24")[0].status,
+    "upcoming",
+  );
+  assert.equal(scheduleMonth(data, "2026-01", "2026-01-25")[0].status, "today");
+  recordScheduledPayment(
+    data,
+    "bill",
+    "2026-01-25",
+    { date: "2026-01-25" },
+    "2026-01-25",
+  );
+  data.entries[0].amount = -40000;
+  reconcileSchedulePayments(data);
+  assert.equal(
+    scheduleMonth(data, "2026-01", "2026-01-26")[0].status,
+    "overdue",
+  );
+  assert.equal(data.entries.length, 1);
+  data.entries[0].amount = -50000;
+  recordScheduledPayment(
+    data,
+    "bill",
+    "2026-01-25",
+    { entryId: data.entries[0].id },
+    "2026-01-26",
+  );
+  data.entries = [];
+  reconcileSchedulePayments(data);
+  assert.equal(data.schedules[0].payments.length, 0);
+  validateLedger(data);
+});
+
+test("schedules persist atomically with linked transactions, backups and legacy restoration", async () => {
+  let snapshot = await loadLedger();
+  snapshot = await restoreLedger(snapshot.revision, fixture());
+  snapshot = await mutateLedger(snapshot.revision, (data) => {
+    data.schedules.push(scheduled());
+  });
+  const oldRevision = snapshot.revision;
+  snapshot = await mutateLedger(snapshot.revision, (data) =>
+    recordScheduledPayment(
+      data,
+      "bill",
+      "2026-01-31",
+      { date: "2026-01-31" },
+      "2026-01-31",
+    ),
+  );
+  await assert.rejects(
+    mutateLedger(oldRevision, (data) =>
+      recordScheduledPayment(
+        data,
+        "bill",
+        "2026-01-31",
+        { date: "2026-01-31" },
+        "2026-01-31",
+      ),
+    ),
+    /다른 화면/,
+  );
+  assert.equal((await loadLedger()).data.entries.length, 1);
+  await assert.rejects(
+    mutateLedger(snapshot.revision, (data) => {
+      data.accounts = data.accounts.filter((a) => a.id !== "cash");
+    }),
+  );
+  const encrypted = await encryptBackup(
+    snapshot.data,
+    "synthetic-schedule-backup",
+  );
+  assert.deepEqual(
+    await decryptBackup(encrypted, "synthetic-schedule-backup"),
+    snapshot.data,
+  );
+  snapshot = await mutateLedger(snapshot.revision, (data) => {
+    data.entries = [];
+  });
+  assert.equal(snapshot.data.schedules[0].payments.length, 0);
+  snapshot = await restoreLedger(
+    snapshot.revision,
+    await decryptBackup(encrypted, "synthetic-schedule-backup"),
+  );
+  assert.equal(snapshot.data.schedules[0].payments.length, 1);
+  const legacy = {
+    ...fixture(),
+    schemaVersion: 2,
+    monthlyPlan: monthlyPlan(),
+  } as Record<string, unknown>;
+  delete legacy.schedules;
+  snapshot = await restoreLedger(snapshot.revision, readLedgerBackup(legacy));
+  assert.deepEqual(snapshot.data.schedules, []);
+  assert.deepEqual(snapshot.data.monthlyPlan, monthlyPlan());
+  await mutateLedger(snapshot.revision, (data) => {
+    data.schedules.push(scheduled());
+  });
+  await deleteAllLocalData();
+  assert.deepEqual((await loadLedger()).data.schedules, []);
+});
 
 test("goal scenarios compare payment dates and expose the funding needed without modifying data", () => {
   const data = fixture();
@@ -974,7 +1274,7 @@ test("monthly plans persist atomically, roundtrip backups, and legacy restore cl
   const legacy = { ...fixture(), schemaVersion: 1 } as Record<string, unknown>;
   delete legacy.monthlyPlan;
   const upgraded = readLedgerBackup(legacy);
-  assert.equal(upgraded.schemaVersion, 2);
+  assert.equal(upgraded.schemaVersion, 3);
   assert.equal(upgraded.monthlyPlan, null);
   snapshot = await restoreLedger(snapshot.revision, upgraded);
   assert.equal(snapshot.data.monthlyPlan, null);
@@ -987,7 +1287,37 @@ test("monthly plans persist atomically, roundtrip backups, and legacy restore cl
   assert.throws(() => readLedgerBackup({ ...legacy, schemaVersion: 99 }));
 });
 
-test("v4 upgrades v3 ledger data and revision without inventing a monthly plan", async () => {
+test("v5 preserves v4 monthly plans, accounts, transactions and revisions", async () => {
+  db.close();
+  await db.delete();
+  const previous = new Dexie("money-plan");
+  previous.version(4).stores({
+    profiles: "id, updatedAt",
+    planRuns: "id, mode, selectedScenarioId, createdAt",
+    plannerDrafts: "id, updatedAt",
+    accounts: "id",
+    ledgerEntries: "id, accountId, date, batchId, pairId",
+    ledgerGoals: "id",
+    importBatches: "id, accountId, &[accountId+hash]",
+    ledgerMeta: "id",
+  });
+  await previous.table("accounts").bulkPut(fixture().accounts);
+  await previous.table("ledgerEntries").add(entry());
+  await previous
+    .table("ledgerMeta")
+    .put({ id: "primary", revision: 13, monthlyPlan: monthlyPlan() });
+  previous.close();
+  await db.open();
+  const snapshot = await loadLedger();
+  assert.equal(snapshot.revision, 13);
+  assert.deepEqual(snapshot.data.monthlyPlan, monthlyPlan());
+  assert.deepEqual(snapshot.data.schedules, []);
+  assert.equal(snapshot.data.schemaVersion, 3);
+  assert.equal(snapshot.data.entries.length, 1);
+  assert.equal(snapshot.data.accounts.length, 2);
+});
+
+test("v5 upgrades v3 ledger data and revision without inventing a monthly plan", async () => {
   db.close();
   await db.delete();
   const previous = new Dexie("money-plan");
