@@ -1,5 +1,5 @@
 import Dexie, { type Table } from "dexie";
-import type { Account, Entry, Goal, ImportBatch, MonthlyPlan } from "../features/ledger/model.ts";
+import type { Account, Entry, Goal, ImportBatch, MonthlyPlan, PaymentSchedule } from "../features/ledger/model.ts";
 import type {
   AllocationInput,
   AllocationResult,
@@ -130,7 +130,7 @@ class MoneyPlanDatabase extends Dexie {
   ledgerEntries!: Table<Entry, string>;
   ledgerGoals!: Table<Goal, string>;
   importBatches!: Table<ImportBatch, string>;
-  ledgerMeta!: Table<{ id: string; revision: number; monthlyPlan?: MonthlyPlan | null }, string>;
+  ledgerMeta!: Table<{ id: string; revision: number; monthlyPlan?: MonthlyPlan | null; schedules?: PaymentSchedule[] }, string>;
 
   constructor() {
     super("money-plan");
@@ -153,6 +153,9 @@ class MoneyPlanDatabase extends Dexie {
     // A version boundary prevents old tabs from overwriting metadata without the plan.
     this.version(4).stores({ ledgerMeta: "id" }).upgrade(async (transaction) => {
       await transaction.table("ledgerMeta").toCollection().modify({ monthlyPlan: null });
+    });
+    this.version(5).stores({ ledgerMeta: "id" }).upgrade(async (transaction) => {
+      await transaction.table("ledgerMeta").toCollection().modify({ schedules: [] });
     });
   }
 }
