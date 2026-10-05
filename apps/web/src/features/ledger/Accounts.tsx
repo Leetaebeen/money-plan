@@ -11,6 +11,7 @@ import {
   type AccountRole,
 } from "./model";
 import { Empty, type PanelProps } from "./shared";
+import { MaturityPlans } from "./MaturityPlans";
 export function Accounts({ data, busy, change }: PanelProps) {
   const [editing, setEditing] = useState<Account | null>(null);
   const [error, setError] = useState("");
@@ -156,6 +157,7 @@ export function Accounts({ data, busy, change }: PanelProps) {
       {!data.accounts.length && (
         <Empty>계좌를 추가하고 잔액을 등록해 주세요.</Empty>
       )}
+      <MaturityPlans data={data} busy={busy} change={change} />
       <div className="ledger-account-grid">
         {data.accounts.map((account) => {
           const current = balance(account, data.entries);
@@ -192,6 +194,11 @@ export function Accounts({ data, busy, change }: PanelProps) {
                 <p className="ledger-note">월급 배분 계획에 사용 중</p>
               )}
               {!planUsesAccount(data.monthlyPlan, account.id) &&
+                !data.maturities.some(
+                  (m) =>
+                    m.accountId === account.id ||
+                    m.allocations.some((a) => a.accountId === account.id),
+                ) &&
                 !data.schedules.some(
                   (s) =>
                     s.accountId === account.id ||

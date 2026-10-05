@@ -1,4 +1,5 @@
 import { validateSchedules } from "./schedules.ts";
+import { validateMaturities } from "./maturities.ts";
 
 export type AccountRole =
   | "SALARY"
@@ -76,8 +77,18 @@ export interface PaymentSchedule {
   endDate: string | null;
   payments: { dueDate: string; entryId: string }[];
 }
+export interface MaturityPlan {
+  id: string;
+  accountId: string;
+  date: string;
+  expectedAmount: number | null;
+  allocations: { accountId: string; amount: number }[];
+  note: string;
+  receivedDate: string | null;
+}
 export interface Ledger {
-  schemaVersion: 3;
+  schemaVersion: 4;
+  maturities: MaturityPlan[];
   schedules: PaymentSchedule[];
   accounts: Account[];
   entries: Entry[];
@@ -164,7 +175,8 @@ export function initialLedger(): Ledger {
     ["미래에셋 연금저축", "PENSION"],
   ];
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
+    maturities: [],
     schedules: [],
     accounts: defaults.map(([name, role]) => ({
       id: crypto.randomUUID(),
@@ -306,7 +318,7 @@ function unique(items: { id: string }[]) {
 export function validateLedger(value: unknown): asserts value is Ledger {
   record(value);
   if (
-    value.schemaVersion !== 3 ||
+    value.schemaVersion !== 4 ||
     !Array.isArray(value.accounts) ||
     !Array.isArray(value.entries) ||
     !Array.isArray(value.goals) ||
@@ -440,6 +452,7 @@ export function validateLedger(value: unknown): asserts value is Ledger {
   if (value.monthlyPlan !== null)
     validateMonthlyPlan(value.monthlyPlan, accounts);
   validateSchedules(value as unknown as Ledger);
+  validateMaturities(value as unknown as Ledger);
 }
 
 export function validateMonthlyPlan(
@@ -501,11 +514,14 @@ export function validateMonthlyPlan(
 export function readLedgerBackup(value: unknown): Ledger {
   record(value);
   const upgraded =
-    value.schemaVersion === 1 || value.schemaVersion === 2
+    value.schemaVersion === 1 ||
+    value.schemaVersion === 2 ||
+    value.schemaVersion === 3
       ? {
           ...value,
-          schemaVersion: 3,
-          schedules: [],
+          schemaVersion: 4,
+          maturities: [],
+          ...(value.schemaVersion !== 3 ? { schedules: [] } : {}),
           ...(value.schemaVersion === 1 ? { monthlyPlan: null } : {}),
         }
       : value;

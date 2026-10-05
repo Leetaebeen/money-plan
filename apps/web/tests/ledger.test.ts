@@ -15,6 +15,7 @@ import {
   type Ledger,
   type MonthlyPlan,
   type PaymentSchedule,
+  type MaturityPlan,
 } from "../src/features/ledger/model.ts";
 import {
   monthlyMetrics,
@@ -33,6 +34,7 @@ import { decryptBackup, encryptBackup } from "../src/features/ledger/backup.ts";
 import { savingsActuals } from "../src/features/ledger/savings-actuals.ts";
 import { cycleBudget } from "../src/features/ledger/cycle-budget.ts";
 import { goalScenario } from "../src/features/ledger/goal-scenario.ts";
+import { maturityMetrics } from "../src/features/ledger/maturities.ts";
 import {
   scheduleDate,
   scheduleMonth,
@@ -50,7 +52,8 @@ import {
 } from "../src/features/ledger/store.ts";
 function fixture(): Ledger {
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
+    maturities: [],
     schedules: [],
     monthlyPlan: null,
     accounts: [
@@ -144,6 +147,183 @@ function scheduled(overrides: Partial<PaymentSchedule> = {}): PaymentSchedule {
     ...overrides,
   };
 }
+
+function maturity(overrides: Partial<MaturityPlan> = {}): MaturityPlan {
+  return {
+    id: "maturity",
+    accountId: "save",
+    date: "2026-02-28",
+    expectedAmount: 10500000,
+    allocations: [{ accountId: "cash", amount: 10000000 }],
+    note: "만기 계획",
+    receivedDate: null,
+    ...overrides,
+  };
+}
+
+test("maturity plans use calendar days and keep unknown totals and overallocations explicit", () => {
+  const data = fixture();
+  assert.equal(
+    maturityMetrics(maturity(), data, "2026-01-28").status,
+    "upcoming",
+  );
+  assert.equal(maturityMetrics(maturity(), data, "2026-01-29").status, "soon");
+  assert.equal(maturityMetrics(maturity(), data, "2026-02-28").status, "today");
+  assert.equal(
+    maturityMetrics(maturity(), data, "2026-03-01").status,
+    "overdue",
+  );
+  assert.equal(
+    maturityMetrics(maturity({ date: "2028-03-01" }), data, "2028-02-28")
+      .daysLeft,
+    2,
+  );
+  assert.equal(
+    maturityMetrics(maturity(), data, "2026-02-28").remaining,
+    500000,
+  );
+  assert.equal(
+    maturityMetrics(maturity({ expectedAmount: null }), data).remaining,
+    null,
+  );
+  assert.equal(
+    maturityMetrics(maturity({ expectedAmount: 9000000 }), data).remaining,
+    -1000000,
+  );
+  assert.equal(
+    maturityMetrics(
+      maturity({ receivedDate: "2026-03-01" }),
+      data,
+      "2026-02-28",
+    ).status,
+    "today",
+  );
+  assert.equal(
+    maturityMetrics(
+      maturity({ receivedDate: "2026-03-01" }),
+      data,
+      "2026-03-01",
+    ).status,
+    "received",
+  );
+  assert.throws(() => maturityMetrics(maturity(), data, "2026-02-30"));
+});
+
+test("maturity planning never adds expected money to assets or goals and flags continuing contributions", () => {
+  const data = fixture();
+  data.monthlyPlan = monthlyPlan();
+  data.schedules.push(scheduled({ targetAccountId: "save" }));
+  data.schedules.push(
+    scheduled({ id: "ended", targetAccountId: "save", endDate: "2026-02-28" }),
+  );
+  const before = structuredClone(data);
+  data.maturities.push(maturity());
+  validateLedger(data);
+  const result = maturityMetrics(data.maturities[0], data);
+  assert.equal(result.monthlyAllocation, 1000000);
+  assert.equal(result.continuingSchedules.length, 1);
+  assert.equal(
+    balance(data.accounts[1], data.entries),
+    balance(before.accounts[1], before.entries),
+  );
+  assert.deepEqual(
+    goalMetrics(data.goals[0], data),
+    goalMetrics(before.goals[0], before),
+  );
+  assert.deepEqual(data.entries, before.entries);
+});
+
+test("maturity validation prevents invalid references, duplicate active accounts and false receipt dates", () => {
+  const data = fixture();
+  data.maturities.push(maturity());
+  const overrides: Partial<MaturityPlan>[] = [
+    { accountId: "cash" },
+    { accountId: "missing" },
+    { date: "2026-02-30" },
+    { expectedAmount: 0 },
+    { expectedAmount: -1 },
+    { expectedAmount: 0.5 },
+    { expectedAmount: 1000000000001 },
+    { receivedDate: "2026-02-27" },
+    { receivedDate: "2099-12-31" },
+    { note: "a".repeat(301) },
+    { allocations: [{ accountId: "save", amount: 1 }] },
+    { allocations: [{ accountId: "missing", amount: 1 }] },
+    { allocations: [{ accountId: "cash", amount: 0 }] },
+    {
+      allocations: [
+        { accountId: "cash", amount: 1 },
+        { accountId: "cash", amount: 2 },
+      ],
+    },
+  ];
+  for (const override of overrides) {
+    const broken = structuredClone(data);
+    Object.assign(broken.maturities[0], override);
+    assert.throws(() => readLedgerBackup(broken));
+  }
+  data.maturities.push(maturity({ id: "second" }));
+  assert.throws(() => validateLedger(data));
+  data.maturities[0].receivedDate = "2026-03-01";
+  validateLedger(data);
+});
+
+test("maturity plans and receipt markers persist without ledger mutations and roundtrip encrypted backups", async () => {
+  let snapshot = await loadLedger();
+  snapshot = await restoreLedger(snapshot.revision, fixture());
+  snapshot = await mutateLedger(snapshot.revision, (data) => {
+    data.maturities.push(maturity());
+  });
+  const oldRevision = snapshot.revision;
+  const priorEntries = structuredClone(snapshot.data.entries);
+  snapshot = await mutateLedger(snapshot.revision, (data) => {
+    data.maturities[0].receivedDate = "2026-03-01";
+  });
+  assert.deepEqual(snapshot.data.entries, priorEntries);
+  await assert.rejects(
+    mutateLedger(oldRevision, (data) => {
+      data.maturities = [];
+    }),
+    /다른 화면/,
+  );
+  await assert.rejects(
+    mutateLedger(snapshot.revision, (data) => {
+      data.accounts = data.accounts.filter((a) => a.id !== "cash");
+    }),
+  );
+  const encrypted = await encryptBackup(
+    snapshot.data,
+    "synthetic-maturity-backup",
+  );
+  assert.deepEqual(
+    await decryptBackup(encrypted, "synthetic-maturity-backup"),
+    snapshot.data,
+  );
+  snapshot = await mutateLedger(snapshot.revision, (data) => {
+    data.maturities = [];
+  });
+  snapshot = await restoreLedger(
+    snapshot.revision,
+    await decryptBackup(encrypted, "synthetic-maturity-backup"),
+  );
+  assert.equal(snapshot.data.maturities[0].receivedDate, "2026-03-01");
+  const legacy = {
+    ...fixture(),
+    schemaVersion: 3,
+    monthlyPlan: monthlyPlan(),
+    schedules: [scheduled()],
+  } as Record<string, unknown>;
+  delete legacy.maturities;
+  snapshot = await restoreLedger(snapshot.revision, readLedgerBackup(legacy));
+  assert.deepEqual(snapshot.data.maturities, []);
+  assert.deepEqual(snapshot.data.schedules, [scheduled()]);
+  assert.deepEqual(snapshot.data.monthlyPlan, monthlyPlan());
+  await mutateLedger(snapshot.revision, (data) => {
+    data.maturities.push(maturity());
+  });
+  await deleteAllLocalData();
+  assert.deepEqual((await loadLedger()).data.maturities, []);
+});
 
 test("scheduled dates clamp month ends and honor inclusive recurrence limits", () => {
   const s = scheduled();
@@ -1274,7 +1454,7 @@ test("monthly plans persist atomically, roundtrip backups, and legacy restore cl
   const legacy = { ...fixture(), schemaVersion: 1 } as Record<string, unknown>;
   delete legacy.monthlyPlan;
   const upgraded = readLedgerBackup(legacy);
-  assert.equal(upgraded.schemaVersion, 3);
+  assert.equal(upgraded.schemaVersion, 4);
   assert.equal(upgraded.monthlyPlan, null);
   snapshot = await restoreLedger(snapshot.revision, upgraded);
   assert.equal(snapshot.data.monthlyPlan, null);
@@ -1287,7 +1467,7 @@ test("monthly plans persist atomically, roundtrip backups, and legacy restore cl
   assert.throws(() => readLedgerBackup({ ...legacy, schemaVersion: 99 }));
 });
 
-test("v5 preserves v4 monthly plans, accounts, transactions and revisions", async () => {
+test("v6 preserves v4 monthly plans, accounts, transactions and revisions", async () => {
   db.close();
   await db.delete();
   const previous = new Dexie("money-plan");
@@ -1312,12 +1492,56 @@ test("v5 preserves v4 monthly plans, accounts, transactions and revisions", asyn
   assert.equal(snapshot.revision, 13);
   assert.deepEqual(snapshot.data.monthlyPlan, monthlyPlan());
   assert.deepEqual(snapshot.data.schedules, []);
-  assert.equal(snapshot.data.schemaVersion, 3);
+  assert.equal(snapshot.data.schemaVersion, 4);
   assert.equal(snapshot.data.entries.length, 1);
   assert.equal(snapshot.data.accounts.length, 2);
 });
 
-test("v5 upgrades v3 ledger data and revision without inventing a monthly plan", async () => {
+test("v6 preserves v5 schedules and linked payment entries", async () => {
+  db.close();
+  await db.delete();
+  const previous = new Dexie("money-plan");
+  previous.version(5).stores({
+    profiles: "id, updatedAt",
+    planRuns: "id, mode, selectedScenarioId, createdAt",
+    plannerDrafts: "id, updatedAt",
+    accounts: "id",
+    ledgerEntries: "id, accountId, date, batchId, pairId",
+    ledgerGoals: "id",
+    importBatches: "id, accountId, &[accountId+hash]",
+    ledgerMeta: "id",
+  });
+  const data = fixture();
+  data.schedules.push(scheduled());
+  recordScheduledPayment(
+    data,
+    "bill",
+    "2026-01-31",
+    { date: "2026-01-31" },
+    "2026-01-31",
+  );
+  await previous.table("accounts").bulkPut(data.accounts);
+  await previous.table("ledgerEntries").bulkPut(data.entries);
+  await previous
+    .table("ledgerMeta")
+    .put({
+      id: "primary",
+      revision: 19,
+      monthlyPlan: monthlyPlan(),
+      schedules: data.schedules,
+    });
+  previous.close();
+  await db.open();
+  const snapshot = await loadLedger();
+  assert.equal(snapshot.revision, 19);
+  assert.deepEqual(snapshot.data.monthlyPlan, monthlyPlan());
+  assert.deepEqual(snapshot.data.schedules, data.schedules);
+  assert.deepEqual(snapshot.data.entries, data.entries);
+  assert.deepEqual(snapshot.data.maturities, []);
+  validateLedger(snapshot.data);
+});
+
+test("v6 upgrades v3 ledger data and revision without inventing a monthly plan", async () => {
   db.close();
   await db.delete();
   const previous = new Dexie("money-plan");
