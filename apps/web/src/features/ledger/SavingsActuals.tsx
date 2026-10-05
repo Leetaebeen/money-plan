@@ -6,6 +6,18 @@ export function SavingsActuals({ data }: { data: Ledger }) {
   const [month, setMonth] = useState(today().slice(0, 7));
   const [error, setError] = useState("");
   const result = savingsActuals(data, month);
+  const entries = data.entries.filter(
+    (e) => e.date >= result.start && e.date <= result.end,
+  );
+  const income = entries
+    .filter((e) => e.kind === "INCOME")
+    .reduce((n, e) => n + e.amount, 0);
+  const expenses = entries
+    .filter((e) => e.kind === "EXPENSE")
+    .reduce((n, e) => n - e.amount, 0);
+  const refunds = entries
+    .filter((e) => e.kind === "REFUND")
+    .reduce((n, e) => n + e.amount, 0);
   return (
     <section className="ledger-panel" aria-label="월 저축 실적">
       <div className="ledger-section-title">
@@ -40,6 +52,34 @@ export function SavingsActuals({ data }: { data: Ledger }) {
       <p className="ledger-note">
         {result.start} ~ {result.end} · 현재 저장된 월 배분 계획과 비교합니다.
         지난달의 계획 이력을 보관하는 기능은 아직 없어요.
+      </p>
+      <h4>조회 월의 기록된 수입·소비</h4>
+      <dl className="ledger-budget-breakdown">
+        <div>
+          <dt>수입</dt>
+          <dd>{won(income)}</dd>
+        </div>
+        <div>
+          <dt>지출</dt>
+          <dd>{won(expenses)}</dd>
+        </div>
+        <div>
+          <dt>환불</dt>
+          <dd>{won(refunds)}</dd>
+        </div>
+        <div>
+          <dt>순소비 (지출 − 환불)</dt>
+          <dd>{won(expenses - refunds)}</dd>
+        </div>
+        <div>
+          <dt>수입 − 순소비</dt>
+          <dd>{won(income - expenses + refunds)}</dd>
+        </div>
+      </dl>
+      <p className="ledger-note">
+        전체 계좌에 기록한 내역만 합산합니다. 이체·잔액 조정은 제외하며, 환불은
+        받은 날짜에 반영합니다. 기록 누락은 알 수 없으며 수입과 소비의 차이는
+        현재 잔액이나 실제 저축액이 아닙니다.
       </p>
       <dl className="ledger-budget-breakdown">
         <div>
