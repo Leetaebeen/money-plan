@@ -1,5 +1,6 @@
 import { validateSchedules } from "./schedules.ts";
 import { validateMaturities } from "./maturities.ts";
+import { validatePlanHistory } from "./plan-history.ts";
 
 export type AccountRole =
   | "SALARY"
@@ -86,8 +87,16 @@ export interface MaturityPlan {
   note: string;
   receivedDate: string | null;
 }
+export interface PlanSnapshot {
+  month: string;
+  savedAt: string;
+  plan: MonthlyPlan;
+  accounts: Account[];
+  goals: Goal[];
+}
 export interface Ledger {
-  schemaVersion: 4;
+  schemaVersion: 5;
+  planHistory: PlanSnapshot[];
   maturities: MaturityPlan[];
   schedules: PaymentSchedule[];
   accounts: Account[];
@@ -175,7 +184,8 @@ export function initialLedger(): Ledger {
     ["미래에셋 연금저축", "PENSION"],
   ];
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
+    planHistory: [],
     maturities: [],
     schedules: [],
     accounts: defaults.map(([name, role]) => ({
@@ -318,7 +328,7 @@ function unique(items: { id: string }[]) {
 export function validateLedger(value: unknown): asserts value is Ledger {
   record(value);
   if (
-    value.schemaVersion !== 4 ||
+    value.schemaVersion !== 5 ||
     !Array.isArray(value.accounts) ||
     !Array.isArray(value.entries) ||
     !Array.isArray(value.goals) ||
@@ -453,6 +463,7 @@ export function validateLedger(value: unknown): asserts value is Ledger {
     validateMonthlyPlan(value.monthlyPlan, accounts);
   validateSchedules(value as unknown as Ledger);
   validateMaturities(value as unknown as Ledger);
+  validatePlanHistory(value as unknown as Ledger);
 }
 
 export function validateMonthlyPlan(
@@ -516,12 +527,16 @@ export function readLedgerBackup(value: unknown): Ledger {
   const upgraded =
     value.schemaVersion === 1 ||
     value.schemaVersion === 2 ||
-    value.schemaVersion === 3
+    value.schemaVersion === 3 ||
+    value.schemaVersion === 4
       ? {
           ...value,
-          schemaVersion: 4,
-          maturities: [],
-          ...(value.schemaVersion !== 3 ? { schedules: [] } : {}),
+          schemaVersion: 5,
+          planHistory: [],
+          ...(value.schemaVersion !== 4 ? { maturities: [] } : {}),
+          ...(value.schemaVersion === 1 || value.schemaVersion === 2
+            ? { schedules: [] }
+            : {}),
           ...(value.schemaVersion === 1 ? { monthlyPlan: null } : {}),
         }
       : value;

@@ -9,6 +9,7 @@ import {
 } from "./model";
 import { monthlyMetrics } from "./monthly-plan";
 import { SavingsActuals } from "./SavingsActuals";
+import { captureMonthlyPlan } from "./plan-history";
 import { CycleBudget } from "./CycleBudget";
 import { ScheduledPayments } from "./ScheduledPayments";
 import { Empty, type PanelProps } from "./shared";
@@ -59,7 +60,8 @@ export function MonthlyPlan({
       if (
         await change((ledger) => {
           ledger.monthlyPlan = next;
-        }, "월급 계획을 저장했어요. 실제 거래와 잔액은 그대로예요.")
+          captureMonthlyPlan(ledger);
+        }, "월급 계획과 이번 달 이력을 저장했어요. 실제 거래와 잔액은 그대로예요.")
       )
         setEditing(false);
     } catch (e) {
@@ -77,12 +79,15 @@ export function MonthlyPlan({
   );
   if (!data.accounts.length)
     return (
-      <Empty>
-        <p>월급 계획에 사용할 계좌부터 등록해 주세요.</p>
-        <button className="ledger-btn" onClick={onAccounts}>
-          계좌 등록
-        </button>
-      </Empty>
+      <>
+        <Empty>
+          <p>월급 계획에 사용할 계좌부터 등록해 주세요.</p>
+          <button className="ledger-btn" onClick={onAccounts}>
+            계좌 등록
+          </button>
+        </Empty>
+        <SavingsActuals data={data} busy={busy} change={change} />
+      </>
     );
   return (
     <section className="ledger-salary">
@@ -267,10 +272,10 @@ export function MonthlyPlan({
           </fieldset>
         </form>
       )}
+      <SavingsActuals data={data} busy={busy} change={change} />
       {plan && result && (
         <>
           <CycleBudget data={data} />
-          <SavingsActuals data={data} />
           {editing && (
             <p className="ledger-note">
               아래는 마지막으로 저장한 계획입니다. 수정 내용은 저장 후 반영돼요.

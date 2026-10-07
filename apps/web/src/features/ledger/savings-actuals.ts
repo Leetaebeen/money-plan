@@ -19,8 +19,16 @@ export function savingsActuals(
       : new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5)), 0))
           .toISOString()
           .slice(0, 10);
-  const plan = data.monthlyPlan;
-  const accounts = data.accounts.filter(
+  const snapshot = data.planHistory.find((s) => s.month === month);
+  const source = snapshot
+    ? "snapshot"
+    : month === asOf.slice(0, 7) && data.monthlyPlan
+      ? "current"
+      : "missing";
+  const plan =
+    snapshot?.plan ?? (source === "current" ? data.monthlyPlan : null);
+  const recordedAccounts = snapshot?.accounts ?? data.accounts;
+  const accounts = recordedAccounts.filter(
     (a) =>
       savingRoles.includes(a.role) &&
       a.id !== plan?.salaryAccountId &&
@@ -31,13 +39,16 @@ export function savingsActuals(
   const entries = data.entries.filter(
     (e) => e.kind === "TRANSFER" && e.date >= start && e.date <= end,
   );
-  const sum = (ids: string[], planned: number) => {
+  const sum = (ids: string[], planned: number | null) => {
     const selected = entries.filter((e) => ids.includes(e.accountId));
     const net = selected.reduce((total, e) => total + e.amount, 0);
     const unpaired = selected.filter((e) => !e.pairId).length;
     const partial = ids.some(
       (id) =>
-        (data.accounts.find((a) => a.id === id)?.openingDate ?? "9999") > start,
+        (data.accounts.find((a) => a.id === id)?.openingDate ?? "9999") >
+          start ||
+        (recordedAccounts.find((a) => a.id === id)?.openingDate ?? "9999") >
+          start,
     );
     return {
       planned,
@@ -45,33 +56,42 @@ export function savingsActuals(
       unpaired,
       partial,
       count: selected.length,
-      remaining: unpaired || partial ? null : Math.max(0, planned - net),
+      remaining:
+        planned === null || unpaired || partial
+          ? null
+          : Math.max(0, planned - net),
     };
   };
   const accountRows = accounts.map((account) => ({
     account,
     ...sum(
       [account.id],
-      plan?.allocations.find((a) => a.accountId === account.id)?.amount ?? 0,
+      plan
+        ? (plan.allocations.find((a) => a.accountId === account.id)?.amount ??
+            0)
+        : null,
     ),
   }));
-  const goalRows = data.goals.map((goal) => {
+  const goalRows = (snapshot?.goals ?? data.goals).map((goal) => {
     const supported = goal.accountIds.every((id) => eligible.has(id));
     const planned = plan
       ? plan.allocations
           .filter((a) => goal.accountIds.includes(a.accountId))
           .reduce((n, a) => n + a.amount, 0)
-      : goal.monthly;
+      : null;
     return { goal, supported, ...sum(goal.accountIds, planned) };
   });
   return {
+    source,
+    snapshot,
+    plan,
     start,
     end,
     accountRows,
     goalRows,
     total: sum(
       [...eligible],
-      accountRows.reduce((n, a) => n + a.planned, 0),
+      plan ? accountRows.reduce((n, a) => n + (a.planned ?? 0), 0) : null,
     ),
   };
 }

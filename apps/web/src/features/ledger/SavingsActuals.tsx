@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { savingsActuals } from "./savings-actuals";
-import { today, won, type Ledger } from "./model";
+import { today, won } from "./model";
+import { captureMonthlyPlan } from "./plan-history";
+import type { PanelProps } from "./shared";
 
-export function SavingsActuals({ data }: { data: Ledger }) {
+export function SavingsActuals({ data, busy, change }: PanelProps) {
   const [month, setMonth] = useState(today().slice(0, 7));
   const [error, setError] = useState("");
   const result = savingsActuals(data, month);
@@ -50,9 +52,81 @@ export function SavingsActuals({ data }: { data: Ledger }) {
         </p>
       )}
       <p className="ledger-note">
-        {result.start} ~ {result.end} · 현재 저장된 월 배분 계획과 비교합니다.
-        지난달의 계획 이력을 보관하는 기능은 아직 없어요.
+        {result.start} ~ {result.end} ·{" "}
+        {result.source === "snapshot"
+          ? `${result.snapshot!.savedAt}에 보관한 계획 기준`
+          : result.source === "current"
+            ? "이번 달 현재 계획 기준 · 이력 미보관"
+            : "계획 이력 없음 · 계획 대비 부족액은 미확정"}
       </p>
+      <div className="ledger-actions">
+        {month === today().slice(0, 7) && data.monthlyPlan && (
+          <button
+            className="ledger-btn"
+            disabled={busy}
+            onClick={() => {
+              if (
+                !result.snapshot ||
+                window.confirm(
+                  "이번 달에 보관한 계획을 현재 계획·계좌·목표 정보로 교체할까요? 다른 달의 이력은 유지됩니다.",
+                )
+              )
+                void change(
+                  (next) => captureMonthlyPlan(next),
+                  "이번 달 계획 이력을 보관했어요.",
+                );
+            }}
+          >
+            {result.snapshot ? "이번 달 이력 갱신" : "이번 달 계획 보관"}
+          </button>
+        )}
+        {result.snapshot && (
+          <button
+            className="ledger-text-btn"
+            disabled={busy}
+            onClick={() => {
+              if (
+                window.confirm(
+                  `${month} 계획 이력을 삭제할까요? 실제 거래와 현재 계획은 유지됩니다.`,
+                )
+              )
+                void change((next) => {
+                  next.planHistory = next.planHistory.filter(
+                    (s) => s.month !== month,
+                  );
+                }, "선택한 달의 계획 이력을 삭제했어요.");
+            }}
+          >
+            이 달의 계획 이력 삭제
+          </button>
+        )}
+      </div>
+      <p className="ledger-note">
+        월급 계획을 저장하면 이번 달 이력도 갱신됩니다. 한 달에 마지막으로
+        저장한 계획 하나를 보관하며, 과거 이력이 없는 달은 소급해서 만들지
+        않습니다. 보관된 계좌·목표 기준으로 현재 남아 있는 거래를 다시
+        집계하므로 거래 수정 시 실적은 달라집니다.
+      </p>
+      {result.plan && (
+        <dl className="ledger-budget-breakdown">
+          <div>
+            <dt>보관/비교 계획의 월급</dt>
+            <dd>{won(result.plan.netIncome)}</dd>
+          </div>
+          <div>
+            <dt>고정비 계획</dt>
+            <dd>{won(result.plan.fixedAmount)}</dd>
+          </div>
+          <div>
+            <dt>생활비 계획</dt>
+            <dd>{won(result.plan.livingAmount)}</dd>
+          </div>
+          <div>
+            <dt>예비비 계획</dt>
+            <dd>{won(result.plan.reserveAmount)}</dd>
+          </div>
+        </dl>
+      )}
       <h4>조회 월의 기록된 수입·소비</h4>
       <dl className="ledger-budget-breakdown">
         <div>
@@ -84,7 +158,11 @@ export function SavingsActuals({ data }: { data: Ledger }) {
       <dl className="ledger-budget-breakdown">
         <div>
           <dt>월 저축·투자 계획 합계</dt>
-          <dd>{won(result.total.planned)}</dd>
+          <dd>
+            {result.total.planned === null
+              ? "계획 없음"
+              : won(result.total.planned)}
+          </dd>
         </div>
         <div>
           <dt>
@@ -111,8 +189,8 @@ export function SavingsActuals({ data }: { data: Ledger }) {
       )}
       {result.total.partial && (
         <p className="ledger-note">
-          조회 월의 중간 이후부터 기록하는 계좌가 있어 월 전체 부족액은 계산하지
-          않습니다.
+          삭제된 계좌 또는 월 중간 이후부터 기록하는 계좌가 있어 월 전체
+          부족액은 계산하지 않습니다.
         </p>
       )}
       <div className="ledger-stack">
@@ -122,7 +200,7 @@ export function SavingsActuals({ data }: { data: Ledger }) {
             <dl className="ledger-budget-breakdown">
               <div>
                 <dt>월 계획</dt>
-                <dd>{won(row.planned)}</dd>
+                <dd>{row.planned === null ? "계획 없음" : won(row.planned)}</dd>
               </div>
               <div>
                 <dt>기록된 계좌 순이체</dt>
@@ -152,7 +230,7 @@ export function SavingsActuals({ data }: { data: Ledger }) {
       </div>
       {!!result.goalRows.length && (
         <>
-          <h4>목표별 이번 달 실적</h4>
+          <h4>목표별 조회 월 실적</h4>
           <div className="ledger-stack">
             {result.goalRows.map((row) => (
               <article key={row.goal.id} className="ledger-funding-goal">
@@ -166,7 +244,9 @@ export function SavingsActuals({ data }: { data: Ledger }) {
                   <dl className="ledger-budget-breakdown">
                     <div>
                       <dt>월 계획</dt>
-                      <dd>{won(row.planned)}</dd>
+                      <dd>
+                        {row.planned === null ? "계획 없음" : won(row.planned)}
+                      </dd>
                     </div>
                     <div>
                       <dt>연결 계좌 순이체</dt>
