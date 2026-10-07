@@ -49,7 +49,8 @@ async function read(): Promise<LedgerSnapshot> {
   return {
     revision: meta?.revision ?? 0,
     data: ordered({
-      schemaVersion: 4,
+      schemaVersion: 5,
+      planHistory: meta?.planHistory ?? [],
       maturities: meta?.maturities ?? [],
       schedules: meta?.schedules ?? [],
       accounts,
@@ -107,6 +108,7 @@ export async function mutateLedger(
       monthlyPlan: next.monthlyPlan,
       schedules: next.schedules,
       maturities: next.maturities,
+      planHistory: next.planHistory,
     });
     return { data: ordered(next), revision: revision + 1 };
   });
@@ -166,5 +168,6 @@ export async function restoreLedger(revision: number, data: Ledger) {
     next.monthlyPlan = structuredClone(data.monthlyPlan);
     next.schedules = structuredClone(data.schedules);
     next.maturities = structuredClone(data.maturities);
+    next.planHistory = structuredClone(data.planHistory);
   });
 }

@@ -141,7 +141,8 @@ export function BackupPanel({ snapshot, busy, run }: Props) {
                 {restore.data.entries.length}건 · 목표{" "}
                 {restore.data.goals.length}개 · 납부 일정{" "}
                 {restore.data.schedules.length}개 · 만기 계획{" "}
-                {restore.data.maturities.length}개
+                {restore.data.maturities.length}개 · 월별 계획{" "}
+                {restore.data.planHistory.length}개
               </p>
               <p>
                 월급 배분 계획:{" "}
