@@ -46,7 +46,7 @@ export function validatePlanHistory(data: Ledger) {
     months.add(snapshot.month);
     // Validate against the archived accounts, not today's renamed/deleted accounts.
     validateLedger({
-      schemaVersion: 6,
+      schemaVersion: 7,
       accounts: snapshot.accounts,
       goals: snapshot.goals,
       monthlyPlan: snapshot.plan,

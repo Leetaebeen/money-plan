@@ -25,6 +25,7 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
   const [editing, setEditing] = useState<Entry | "new" | null>(null);
   const [account, setAccount] = useState(data.accounts[0]?.id ?? "");
   const [other, setOther] = useState("");
+  const [cardBudget, setCardBudget] = useState<"" | "FIXED" | "LIVING">("");
   const [kind, setKind] = useState<EntryKind>("EXPENSE");
   const [date, setDate] = useState(today());
   const [value, setValue] = useState("");
@@ -38,6 +39,7 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
     setEditing(entry ?? "new");
     setAccount(entry?.accountId ?? data.accounts[0]?.id ?? "");
     setOther("");
+    setCardBudget(entry?.cardBudget ?? "");
     setKind(entry?.kind ?? "EXPENSE");
     setDate(entry?.date ?? today());
     setValue(
@@ -91,6 +93,11 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
         kind,
         description: description.trim(),
         category: category.trim() || "미분류",
+        ...(source.role === "CREDIT_CARD" &&
+        (kind === "EXPENSE" || kind === "REFUND") &&
+        cardBudget
+          ? { cardBudget }
+          : {}),
         batchId: editingImported ? editing.batchId : null,
         pairId,
       };
@@ -195,6 +202,27 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
                   ))}
                 </select>
               </label>
+              {data.accounts.find((a) => a.id === account)?.role ===
+                "CREDIT_CARD" &&
+                (kind === "EXPENSE" || kind === "REFUND") && (
+                  <label>
+                    카드 소비 예산
+                    <select
+                      value={cardBudget}
+                      onChange={(e) =>
+                        setCardBudget(e.target.value as "" | "FIXED" | "LIVING")
+                      }
+                    >
+                      <option value="">미분류 (남은 예산 계산 보류)</option>
+                      <option value="FIXED">고정비</option>
+                      <option value="LIVING">생활비</option>
+                    </select>
+                    <span className="ledger-note">
+                      환불은 원래 소비와 같은 예산으로 선택하세요. 결제대금
+                      이체는 소비에 포함하지 않아요.
+                    </span>
+                  </label>
+                )}
               {kind === "TRANSFER" && !imported && (
                 <label>
                   받는 계좌
@@ -348,6 +376,10 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
                 <h3>{entry.description}</h3>
                 <span className="ledger-tag">
                   {kinds[entry.kind]} · {entry.category}
+                  {data.accounts.find((a) => a.id === entry.accountId)?.role ===
+                    "CREDIT_CARD" &&
+                    (entry.kind === "EXPENSE" || entry.kind === "REFUND") &&
+                    ` · ${entry.cardBudget === "FIXED" ? "고정비 예산" : entry.cardBudget === "LIVING" ? "생활비 예산" : "예산 미분류"}`}
                 </span>
               </div>
               <div className="ledger-entry-end">
