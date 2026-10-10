@@ -14,9 +14,16 @@ export function CycleBudget({ data }: { data: Ledger }) {
       </p>
       {result.hasCard && (
         <p className="ledger-note">
-          카드 사용액의 고정비·생활비 구분이 아직 연결되지 않아 남은 예산과 하루
-          기준액은 계산하지 않습니다. 아래 지출은 선택한 은행 계좌 기록만
-          집계합니다. 전체 카드 소비는 홈의 이번 달 소비에서 확인하세요.
+          고정비·생활비로 분류한 카드 사용과 환불을 해당 예산에 합산합니다.
+          결제대금 이체는 다시 차감하지 않습니다.
+        </p>
+      )}
+      {result.unassignedCards > 0 && (
+        <p className="ledger-note">
+          이번 주기에 예산 미분류 또는 연결할 예산 계좌가 없는 카드 거래가{" "}
+          {result.unassignedCards}건 있어 남은 예산·하루 기준액 계산을
+          보류합니다. 거래 수정에서 카드 소비 예산을 선택하고 월급 계획의 해당
+          계좌를 지정해 주세요.
         </p>
       )}
       <div className="ledger-stack">
@@ -59,8 +66,8 @@ export function CycleBudget({ data }: { data: Ledger }) {
             </dl>
             {row.partial && (
               <p className="ledger-note">
-                계좌 기록이 이번 급여 주기 중간 이후부터 시작해 남은 예산을
-                계산하지 않습니다.
+                은행 또는 카드 기록이 이번 급여 주기 중간 이후부터 시작해 남은
+                예산을 계산하지 않습니다.
               </p>
             )}
             {row.purposes.length > 1 && row.daily === null && !row.partial && (
@@ -83,10 +90,10 @@ export function CycleBudget({ data }: { data: Ledger }) {
       )}
       <p className="ledger-note">
         남은 예산은 계좌 잔액이나 실제 사용 가능 현금이 아닙니다. 현재 계획과
-        선택한 지출 계좌의 기록만 비교하며, 수입·이체·잔액 조정은 소비에
-        포함하지 않습니다. 누락한 지출과 다른 계좌의 결제는 반영되지 않으며
-        환불은 받은 날짜에 차감합니다. 급여 입금 여부와 휴일에 따른 월급일
-        변경은 자동 확인하지 않습니다.
+        선택한 지출 계좌와 예산을 분류한 카드 기록을 비교하며, 수입·이체·잔액
+        조정은 소비에 포함하지 않습니다. 누락한 지출과 다른 계좌의 결제는
+        반영되지 않으며 환불은 받은 날짜에 차감합니다. 급여 입금 여부와 휴일에
+        따른 월급일 변경은 자동 확인하지 않습니다.
       </p>
     </section>
   );

@@ -54,7 +54,7 @@ import {
 } from "../src/features/ledger/store.ts";
 function fixture(): Ledger {
   return {
-    schemaVersion: 6,
+    schemaVersion: 7,
     planHistory: [],
     maturities: [],
     schedules: [],
@@ -1611,7 +1611,7 @@ test("monthly plans persist atomically, roundtrip backups, and legacy restore cl
   const legacy = { ...fixture(), schemaVersion: 1 } as Record<string, unknown>;
   delete legacy.monthlyPlan;
   const upgraded = readLedgerBackup(legacy);
-  assert.equal(upgraded.schemaVersion, 6);
+  assert.equal(upgraded.schemaVersion, 7);
   assert.equal(upgraded.monthlyPlan, null);
   snapshot = await restoreLedger(snapshot.revision, upgraded);
   assert.equal(snapshot.data.monthlyPlan, null);
@@ -1649,7 +1649,7 @@ test("v6 preserves v4 monthly plans, accounts, transactions and revisions", asyn
   assert.equal(snapshot.revision, 13);
   assert.deepEqual(snapshot.data.monthlyPlan, monthlyPlan());
   assert.deepEqual(snapshot.data.schedules, []);
-  assert.equal(snapshot.data.schemaVersion, 6);
+  assert.equal(snapshot.data.schemaVersion, 7);
   assert.equal(snapshot.data.entries.length, 1);
   assert.equal(snapshot.data.accounts.length, 2);
 });
@@ -1878,11 +1878,153 @@ test("liabilities cannot fund savings goals or spending accounts; old backups re
   validateLedger(data);
   const result = cycleBudget(data, "2026-02-01")!;
   assert.equal(result.hasCard, true);
-  assert.equal(result.rows[0]!.remaining, null);
-  assert.equal(result.rows[0]!.daily, null);
+  assert.equal(result.rows[0]!.remaining, 100000);
+  assert.ok(result.rows[0]!.daily! > 0);
   captureMonthlyPlan(data, "2026-02-01");
   assert.deepEqual(
     readLedgerBackup({ ...data, schemaVersion: 5 }).planHistory,
     data.planHistory,
   );
+});
+
+function cardBudgetFixture(): Ledger {
+  const data = fixture();
+  data.accounts.push({
+    id: "card",
+    name: "카드",
+    role: "CREDIT_CARD",
+    openingBalance: 0,
+    openingDate: "2026-01-01",
+  });
+  data.monthlyPlan = {
+    salaryAccountId: "cash",
+    payday: 25,
+    netIncome: 1000000,
+    fixedAccountId: "save",
+    fixedAmount: 300000,
+    livingAccountId: "cash",
+    livingAmount: 500000,
+    reserveAmount: 0,
+    allocations: [],
+  };
+  data.entries = [
+    entry({
+      id: "living",
+      accountId: "card",
+      date: "2026-01-26",
+      amount: -100000,
+      kind: "EXPENSE",
+      cardBudget: "LIVING",
+    }),
+    entry({
+      id: "fixed",
+      accountId: "card",
+      date: "2026-01-27",
+      amount: -50000,
+      kind: "EXPENSE",
+      cardBudget: "FIXED",
+    }),
+    entry({
+      id: "refund",
+      accountId: "card",
+      date: "2026-01-28",
+      amount: 20000,
+      kind: "REFUND",
+      cardBudget: "LIVING",
+    }),
+    entry({
+      id: "bank",
+      accountId: "cash",
+      date: "2026-01-28",
+      amount: -30000,
+      kind: "EXPENSE",
+    }),
+    entry({
+      id: "pay",
+      accountId: "cash",
+      date: "2026-01-29",
+      amount: -130000,
+      kind: "TRANSFER",
+      pairId: "settle",
+    }),
+    entry({
+      id: "settle",
+      accountId: "card",
+      date: "2026-01-29",
+      amount: 130000,
+      kind: "TRANSFER",
+      pairId: "settle",
+    }),
+  ];
+  return data;
+}
+
+test("card budgets combine purchases and refunds with bank spending, excluding settlement", () => {
+  const data = cardBudgetFixture();
+  validateLedger(data);
+  const result = cycleBudget(data, "2026-02-01")!;
+  const living = result.rows.find((r) => r.account.id === "cash")!;
+  assert.equal(living.spent, 130000);
+  assert.equal(living.refunded, 20000);
+  assert.equal(living.remaining, 390000);
+  assert.equal(living.daily, Math.floor(390000 / result.daysLeft));
+  assert.equal(
+    result.rows.find((r) => r.account.id === "save")!.remaining,
+    250000,
+  );
+  data.monthlyPlan!.fixedAccountId = "cash";
+  const merged = cycleBudget(data, "2026-02-01")!;
+  assert.equal(merged.rows.length, 1);
+  assert.equal(merged.rows[0]!.remaining, 640000);
+  assert.equal(merged.rows[0]!.daily, null);
+});
+
+test("unclassified card entries, missing targets and partial card records withhold estimates", () => {
+  const data = cardBudgetFixture();
+  delete data.entries[0]!.cardBudget;
+  let result = cycleBudget(data, "2026-02-01")!;
+  assert.equal(result.unassignedCards, 1);
+  assert.ok(result.rows.every((r) => r.remaining === null && r.daily === null));
+  data.entries[0]!.cardBudget = "LIVING";
+  data.monthlyPlan!.fixedAccountId = null;
+  data.monthlyPlan!.fixedAmount = 0;
+  assert.equal(cycleBudget(data, "2026-02-01")!.unassignedCards, 1);
+  data.monthlyPlan!.fixedAccountId = "save";
+  data.accounts[2]!.openingDate = "2026-01-26";
+  result = cycleBudget(data, "2026-02-01")!;
+  assert.equal(result.partialCards, true);
+  assert.ok(result.rows.every((r) => r.remaining === null));
+  data.accounts[2]!.openingDate = "2026-01-01";
+  data.entries.push(
+    entry({
+      id: "old",
+      accountId: "card",
+      date: "2026-01-24",
+      amount: -100,
+      kind: "EXPENSE",
+    }),
+    entry({
+      id: "future",
+      accountId: "card",
+      date: "2026-02-02",
+      amount: -100,
+      kind: "EXPENSE",
+    }),
+  );
+  assert.equal(cycleBudget(data, "2026-02-01")!.unassignedCards, 0);
+});
+
+test("card budget validation and encrypted backups preserve assignments", async () => {
+  const data = cardBudgetFixture();
+  const encrypted = await encryptBackup(data, "card-budget-test-password");
+  assert.deepEqual(
+    await decryptBackup(encrypted, "card-budget-test-password"),
+    data,
+  );
+  assert.deepEqual(readLedgerBackup({ ...data, schemaVersion: 6 }), data);
+  data.entries[3]!.cardBudget = "FIXED";
+  assert.throws(() => validateLedger(data), /카드 예산/);
+  delete data.entries[3]!.cardBudget;
+  data.entries[5]!.cardBudget = "LIVING";
+  assert.throws(() => validateLedger(data), /카드 예산/);
 });

@@ -35,6 +35,7 @@ export interface Entry {
   kind: EntryKind;
   batchId: string | null;
   pairId: string | null;
+  cardBudget?: "FIXED" | "LIVING";
 }
 export interface Goal {
   id: string;
@@ -97,7 +98,7 @@ export interface PlanSnapshot {
   goals: Goal[];
 }
 export interface Ledger {
-  schemaVersion: 6;
+  schemaVersion: 7;
   planHistory: PlanSnapshot[];
   maturities: MaturityPlan[];
   schedules: PaymentSchedule[];
@@ -213,7 +214,7 @@ export function initialLedger(): Ledger {
     ["미래에셋 연금저축", "PENSION"],
   ];
   return {
-    schemaVersion: 6,
+    schemaVersion: 7,
     planHistory: [],
     maturities: [],
     schedules: [],
@@ -357,7 +358,7 @@ function unique(items: { id: string }[]) {
 export function validateLedger(value: unknown): asserts value is Ledger {
   record(value);
   if (
-    value.schemaVersion !== 6 ||
+    value.schemaVersion !== 7 ||
     !Array.isArray(value.accounts) ||
     !Array.isArray(value.entries) ||
     !Array.isArray(value.goals) ||
@@ -428,6 +429,15 @@ export function validateLedger(value: unknown): asserts value is Ledger {
       !Object.hasOwn(kinds, e.kind)
     )
       throw new Error("거래의 날짜·계좌·종류를 확인해 주세요.");
+    if (
+      e.cardBudget !== undefined &&
+      ((e.cardBudget !== "FIXED" && e.cardBudget !== "LIVING") ||
+        accountById.get(e.accountId)!.role !== "CREDIT_CARD" ||
+        (e.kind !== "EXPENSE" && e.kind !== "REFUND"))
+    )
+      throw new Error(
+        "카드 예산 구분은 신용카드 지출·환불에만 고정비 또는 생활비로 지정해 주세요.",
+      );
     if (e.date < accountById.get(e.accountId)!.openingDate)
       throw new Error("계좌의 잔액 기준일보다 이전 거래가 있습니다.");
     if (
@@ -561,11 +571,12 @@ export function readLedgerBackup(value: unknown): Ledger {
     value.schemaVersion === 2 ||
     value.schemaVersion === 3 ||
     value.schemaVersion === 4 ||
-    value.schemaVersion === 5
+    value.schemaVersion === 5 ||
+    value.schemaVersion === 6
       ? {
           ...value,
-          schemaVersion: 6,
-          ...(value.schemaVersion !== 5 ? { planHistory: [] } : {}),
+          schemaVersion: 7,
+          ...(Number(value.schemaVersion) < 5 ? { planHistory: [] } : {}),
           ...(Number(value.schemaVersion) < 4 ? { maturities: [] } : {}),
           ...(value.schemaVersion === 1 || value.schemaVersion === 2
             ? { schedules: [] }

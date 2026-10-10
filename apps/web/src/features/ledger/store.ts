@@ -51,7 +51,7 @@ async function read(): Promise<LedgerSnapshot> {
   return {
     revision: meta?.revision ?? 0,
     data: ordered({
-      schemaVersion: 6,
+      schemaVersion: 7,
       planHistory: meta?.planHistory ?? [],
       maturities: meta?.maturities ?? [],
       schedules: meta?.schedules ?? [],

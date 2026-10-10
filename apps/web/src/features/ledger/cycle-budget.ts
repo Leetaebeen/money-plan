@@ -23,14 +23,35 @@ export function cycleBudget(data: Ledger, asOf = today()) {
     current.purposes.push(purpose);
     budgets.set(id, current);
   }
-  const hasCard = data.accounts.some((a) => a.role === "CREDIT_CARD");
+  const cards = data.accounts.filter(
+    (a) => a.role === "CREDIT_CARD" && a.openingDate <= asOf,
+  );
+  const cardIds = new Set(cards.map((a) => a.id));
+  const cardEntries = data.entries.filter(
+    (e) =>
+      cardIds.has(e.accountId) &&
+      e.date >= cycle.start &&
+      e.date <= asOf &&
+      (e.kind === "EXPENSE" || e.kind === "REFUND"),
+  );
+  const targetFor = (e: (typeof cardEntries)[number]) =>
+    e.cardBudget === "FIXED"
+      ? plan.fixedAccountId
+      : e.cardBudget === "LIVING"
+        ? plan.livingAccountId
+        : null;
+  const unassignedCards = cardEntries.filter((e) => !targetFor(e)).length;
+  const partialCards = cards.some((a) => a.openingDate > cycle.start);
+  const hasCard = cards.length > 0;
   const rows = [...budgets].map(([id, budget]) => {
     const account = data.accounts.find((a) => a.id === id)!;
     const entries = data.entries.filter(
       (e) =>
-        e.accountId === id &&
+        (e.accountId === id ||
+          (cardIds.has(e.accountId) && targetFor(e) === id)) &&
         e.date >= cycle.start &&
-        e.date >= account.openingDate &&
+        e.date >=
+          data.accounts.find((a) => a.id === e.accountId)!.openingDate &&
         e.date <= asOf,
     );
     const spent = entries
@@ -39,9 +60,9 @@ export function cycleBudget(data: Ledger, asOf = today()) {
     const refunded = entries
       .filter((e) => e.kind === "REFUND")
       .reduce((n, e) => n + e.amount, 0);
-    const partial = account.openingDate > cycle.start;
+    const partial = account.openingDate > cycle.start || partialCards;
     const remaining =
-      partial || hasCard ? null : budget.planned - spent + refunded;
+      partial || unassignedCards > 0 ? null : budget.planned - spent + refunded;
     // A shared fixed-cost account may still contain unpaid bills.
     const daily =
       remaining !== null &&
@@ -51,5 +72,14 @@ export function cycleBudget(data: Ledger, asOf = today()) {
         : null;
     return { account, ...budget, spent, refunded, partial, remaining, daily };
   });
-  return { ...cycle, end, asOf, daysLeft, hasCard, rows };
+  return {
+    ...cycle,
+    end,
+    asOf,
+    daysLeft,
+    hasCard,
+    unassignedCards,
+    partialCards,
+    rows,
+  };
 }
