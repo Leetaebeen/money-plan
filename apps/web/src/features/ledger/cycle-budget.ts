@@ -23,6 +23,7 @@ export function cycleBudget(data: Ledger, asOf = today()) {
     current.purposes.push(purpose);
     budgets.set(id, current);
   }
+  const hasCard = data.accounts.some((a) => a.role === "CREDIT_CARD");
   const rows = [...budgets].map(([id, budget]) => {
     const account = data.accounts.find((a) => a.id === id)!;
     const entries = data.entries.filter(
@@ -39,7 +40,8 @@ export function cycleBudget(data: Ledger, asOf = today()) {
       .filter((e) => e.kind === "REFUND")
       .reduce((n, e) => n + e.amount, 0);
     const partial = account.openingDate > cycle.start;
-    const remaining = partial ? null : budget.planned - spent + refunded;
+    const remaining =
+      partial || hasCard ? null : budget.planned - spent + refunded;
     // A shared fixed-cost account may still contain unpaid bills.
     const daily =
       remaining !== null &&
@@ -49,5 +51,5 @@ export function cycleBudget(data: Ledger, asOf = today()) {
         : null;
     return { account, ...budget, spent, refunded, partial, remaining, daily };
   });
-  return { ...cycle, end, asOf, daysLeft, rows };
+  return { ...cycle, end, asOf, daysLeft, hasCard, rows };
 }

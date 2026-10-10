@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  isLiability,
   money,
   roles,
   savingRoles,
@@ -70,11 +71,13 @@ export function MonthlyPlan({
   }
   const accountOptions = (
     <>
-      {data.accounts.map((a) => (
-        <option key={a.id} value={a.id}>
-          {a.name}
-        </option>
-      ))}
+      {data.accounts
+        .filter((a) => !isLiability(a))
+        .map((a) => (
+          <option key={a.id} value={a.id}>
+            {a.name}
+          </option>
+        ))}
     </>
   );
   if (!data.accounts.length)

@@ -9,7 +9,9 @@ export type AccountRole =
   | "SAVINGS"
   | "HOUSING"
   | "ISA"
-  | "PENSION";
+  | "PENSION"
+  | "CREDIT_CARD"
+  | "LOAN";
 export type EntryKind =
   | "INCOME"
   | "EXPENSE"
@@ -95,7 +97,7 @@ export interface PlanSnapshot {
   goals: Goal[];
 }
 export interface Ledger {
-  schemaVersion: 5;
+  schemaVersion: 6;
   planHistory: PlanSnapshot[];
   maturities: MaturityPlan[];
   schedules: PaymentSchedule[];
@@ -117,7 +119,34 @@ export const roles: Record<AccountRole, string> = {
   HOUSING: "주택청약",
   ISA: "ISA",
   PENSION: "연금저축",
+  CREDIT_CARD: "신용카드",
+  LOAN: "대출",
 };
+export function isLiability(account: Account): boolean {
+  return account.role === "CREDIT_CARD" || account.role === "LOAN";
+}
+export function netWorth(data: Ledger, asOf = today()) {
+  let assets = 0,
+    debt = 0,
+    known = 0;
+  for (const account of data.accounts) {
+    const value = balance(account, data.entries, asOf);
+    if (value === null) continue;
+    known++;
+    // Negative bank balances also represent money owed; credit balances are assets.
+    assets += Math.max(0, value);
+    debt += Math.max(0, -value);
+  }
+  const unknown = data.accounts.length - known;
+  return {
+    assets,
+    debt,
+    known,
+    unknown,
+    net: assets - debt,
+    complete: unknown === 0,
+  };
+}
 export const kinds: Record<EntryKind, string> = {
   INCOME: "수입",
   EXPENSE: "지출",
@@ -184,7 +213,7 @@ export function initialLedger(): Ledger {
     ["미래에셋 연금저축", "PENSION"],
   ];
   return {
-    schemaVersion: 5,
+    schemaVersion: 6,
     planHistory: [],
     maturities: [],
     schedules: [],
@@ -328,7 +357,7 @@ function unique(items: { id: string }[]) {
 export function validateLedger(value: unknown): asserts value is Ledger {
   record(value);
   if (
-    value.schemaVersion !== 5 ||
+    value.schemaVersion !== 6 ||
     !Array.isArray(value.accounts) ||
     !Array.isArray(value.entries) ||
     !Array.isArray(value.goals) ||
@@ -455,6 +484,8 @@ export function validateLedger(value: unknown): asserts value is Ledger {
     for (const id of g.accountIds) {
       if (typeof id !== "string" || !accountIds.has(id) || assigned.has(id))
         throw new Error("계좌는 한 목표에만 연결할 수 있습니다.");
+      if (isLiability(accountById.get(id)!))
+        throw new Error("카드·대출 계좌는 저축 목표에 연결할 수 없습니다.");
       assigned.add(id);
     }
   }
@@ -474,7 +505,8 @@ export function validateMonthlyPlan(
   const byId = new Map(accounts.map((a) => [a.id, a]));
   if (
     typeof value.salaryAccountId !== "string" ||
-    !byId.has(value.salaryAccountId)
+    !byId.has(value.salaryAccountId) ||
+    isLiability(byId.get(value.salaryAccountId)!)
   )
     throw new Error("월급을 받는 계좌를 선택해 주세요.");
   if (
@@ -495,7 +527,7 @@ export function validateMonthlyPlan(
     [value.livingAccountId, value.livingAmount],
   ]) {
     if (id === null && budget === 0) continue;
-    if (typeof id !== "string" || !byId.has(id))
+    if (typeof id !== "string" || !byId.has(id) || isLiability(byId.get(id)!))
       throw new Error("고정비·생활비를 보관할 계좌를 선택해 주세요.");
   }
   if (!Array.isArray(value.allocations) || value.allocations.length > 100)
@@ -528,12 +560,13 @@ export function readLedgerBackup(value: unknown): Ledger {
     value.schemaVersion === 1 ||
     value.schemaVersion === 2 ||
     value.schemaVersion === 3 ||
-    value.schemaVersion === 4
+    value.schemaVersion === 4 ||
+    value.schemaVersion === 5
       ? {
           ...value,
-          schemaVersion: 5,
-          planHistory: [],
-          ...(value.schemaVersion !== 4 ? { maturities: [] } : {}),
+          schemaVersion: 6,
+          ...(value.schemaVersion !== 5 ? { planHistory: [] } : {}),
+          ...(Number(value.schemaVersion) < 4 ? { maturities: [] } : {}),
           ...(value.schemaVersion === 1 || value.schemaVersion === 2
             ? { schedules: [] }
             : {}),

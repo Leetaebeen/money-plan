@@ -4,6 +4,7 @@ import test from "node:test";
 import Dexie from "dexie";
 import {
   balance,
+  netWorth,
   goalMetrics,
   initialLedger,
   money,
@@ -53,7 +54,7 @@ import {
 } from "../src/features/ledger/store.ts";
 function fixture(): Ledger {
   return {
-    schemaVersion: 5,
+    schemaVersion: 6,
     planHistory: [],
     maturities: [],
     schedules: [],
@@ -1610,7 +1611,7 @@ test("monthly plans persist atomically, roundtrip backups, and legacy restore cl
   const legacy = { ...fixture(), schemaVersion: 1 } as Record<string, unknown>;
   delete legacy.monthlyPlan;
   const upgraded = readLedgerBackup(legacy);
-  assert.equal(upgraded.schemaVersion, 5);
+  assert.equal(upgraded.schemaVersion, 6);
   assert.equal(upgraded.monthlyPlan, null);
   snapshot = await restoreLedger(snapshot.revision, upgraded);
   assert.equal(snapshot.data.monthlyPlan, null);
@@ -1648,7 +1649,7 @@ test("v6 preserves v4 monthly plans, accounts, transactions and revisions", asyn
   assert.equal(snapshot.revision, 13);
   assert.deepEqual(snapshot.data.monthlyPlan, monthlyPlan());
   assert.deepEqual(snapshot.data.schedules, []);
-  assert.equal(snapshot.data.schemaVersion, 5);
+  assert.equal(snapshot.data.schemaVersion, 6);
   assert.equal(snapshot.data.entries.length, 1);
   assert.equal(snapshot.data.accounts.length, 2);
 });
@@ -1733,5 +1734,155 @@ test("v6 upgrades v3 ledger data and revision without inventing a monthly plan",
       snapshot.data.entries,
     ),
     999000,
+  );
+});
+
+test("card purchases, refunds and settlement affect consumption only once", () => {
+  const data = fixture();
+  data.accounts.push({
+    id: "card",
+    name: "카드",
+    role: "CREDIT_CARD",
+    openingBalance: 0,
+    openingDate: "2026-01-01",
+  });
+  data.entries = [
+    entry({
+      id: "purchase",
+      accountId: "card",
+      amount: -300000,
+      kind: "EXPENSE",
+      date: "2026-01-02",
+    }),
+    entry({
+      id: "refund",
+      accountId: "card",
+      amount: 50000,
+      kind: "REFUND",
+      date: "2026-01-03",
+    }),
+    entry({
+      id: "out",
+      accountId: "cash",
+      amount: -250000,
+      kind: "TRANSFER",
+      pairId: "payment",
+      date: "2026-01-04",
+    }),
+    entry({
+      id: "in",
+      accountId: "card",
+      amount: 250000,
+      kind: "TRANSFER",
+      pairId: "payment",
+      date: "2026-01-04",
+    }),
+  ];
+  validateLedger(data);
+  assert.equal(netWorth(data, "2026-01-03").debt, 250000);
+  assert.equal(netWorth(data, "2026-01-04").debt, 0);
+  assert.equal(
+    netWorth(data, "2026-01-03").net,
+    netWorth(data, "2026-01-04").net,
+  );
+  assert.equal(balance(data.accounts[2]!, data.entries, "2026-01-04"), 0);
+  assert.equal(
+    -data.entries
+      .filter((e) => e.kind === "EXPENSE" || e.kind === "REFUND")
+      .reduce((n, e) => n + e.amount, 0),
+    250000,
+  );
+});
+
+test("borrowing and principal repayments preserve net worth; interest reduces it", () => {
+  const data = fixture();
+  data.accounts.push({
+    id: "loan",
+    name: "대출",
+    role: "LOAN",
+    openingBalance: 0,
+    openingDate: "2026-01-01",
+  });
+  const initial = netWorth(data, "2026-01-01").net;
+  data.entries = [
+    entry({
+      id: "borrow",
+      accountId: "loan",
+      amount: -500000,
+      kind: "TRANSFER",
+      pairId: "borrow",
+      date: "2026-01-02",
+    }),
+    entry({
+      id: "receive",
+      accountId: "cash",
+      amount: 500000,
+      kind: "TRANSFER",
+      pairId: "borrow",
+      date: "2026-01-02",
+    }),
+    entry({
+      id: "repay",
+      accountId: "cash",
+      amount: -100000,
+      kind: "TRANSFER",
+      pairId: "repay",
+      date: "2026-01-03",
+    }),
+    entry({
+      id: "reduce",
+      accountId: "loan",
+      amount: 100000,
+      kind: "TRANSFER",
+      pairId: "repay",
+      date: "2026-01-03",
+    }),
+    entry({
+      id: "interest",
+      accountId: "cash",
+      amount: -5000,
+      kind: "EXPENSE",
+      date: "2026-01-04",
+    }),
+  ];
+  validateLedger(data);
+  assert.equal(netWorth(data, "2026-01-03").net, initial);
+  assert.equal(netWorth(data, "2026-01-04").net, initial - 5000);
+  assert.equal(netWorth(data, "2026-01-04").debt, 400000);
+  data.accounts[2]!.openingBalance = null;
+  assert.equal(netWorth(data, "2026-01-04").complete, false);
+  assert.equal(netWorth(data, "2026-01-04").unknown, 1);
+});
+
+test("liabilities cannot fund savings goals or spending accounts; old backups retain history", () => {
+  const data = fixture();
+  const old = { ...structuredClone(data), schemaVersion: 5 };
+  assert.deepEqual(readLedgerBackup(old), data);
+  data.accounts[1]!.role = "LOAN";
+  assert.throws(() => validateLedger(data), /목표/);
+  data.goals = [];
+  data.monthlyPlan = {
+    salaryAccountId: "cash",
+    payday: 25,
+    netIncome: 1000000,
+    fixedAccountId: null,
+    fixedAmount: 0,
+    livingAccountId: "save",
+    livingAmount: 100000,
+    reserveAmount: 0,
+    allocations: [],
+  };
+  assert.throws(() => validateLedger(data), /고정비/);
+  data.monthlyPlan.livingAccountId = "cash";
+  data.accounts[1]!.role = "CREDIT_CARD";
+  validateLedger(data);
+  const result = cycleBudget(data, "2026-02-01")!;
+  assert.equal(result.hasCard, true);
+  assert.equal(result.rows[0]!.remaining, null);
+  assert.equal(result.rows[0]!.daily, null);
+  captureMonthlyPlan(data, "2026-02-01");
+  assert.deepEqual(
+    readLedgerBackup({ ...data, schemaVersion: 5 }).planHistory,
+    data.planHistory,
   );
 });

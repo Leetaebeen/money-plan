@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { App as LegacyPlanner } from "../../app/App";
 import { UpdatePrompt } from "../../components/UpdatePrompt";
-import { balance, today, won, type Ledger, type LedgerSnapshot } from "./model";
+import {
+  netWorth,
+  today,
+  won,
+  type Ledger,
+  type LedgerSnapshot,
+} from "./model";
 import { loadLedger, mutateLedger } from "./store";
 import { Accounts } from "./Accounts";
 import { Goals, GoalCard } from "./Goals";
@@ -106,10 +112,8 @@ export function LedgerApp() {
     );
   const data = snapshot?.data;
   const monthly = data ? monthlyMetrics(data) : null;
-  const known =
-    data?.accounts
-      .map((a) => balance(a, data.entries))
-      .filter((v): v is number => v !== null) ?? [];
+  const wealth = data ? netWorth(data) : null;
+  const known = wealth?.known ?? 0;
   const month = today().slice(0, 7);
   const entries =
     data?.entries.filter(
@@ -121,7 +125,7 @@ export function LedgerApp() {
   const income = entries
     .filter((e) => e.kind === "INCOME")
     .reduce((sum, e) => sum + e.amount, 0);
-  const unknown = (data?.accounts.length ?? 0) - known.length;
+  const unknown = wealth?.unknown ?? 0;
   return (
     <div className="ledger">
       <a href="#ledger-main" className="skip-link">
@@ -197,25 +201,26 @@ export function LedgerApp() {
                   <section className="ledger-hero">
                     <div>
                       <span className="ledger-eyebrow">
-                        내가 등록한 금융자산
+                        등록한 순자산 (자산 − 부채)
                       </span>
                       <p className="ledger-total">
-                        {known.length
-                          ? won(known.reduce((sum, v) => sum + v, 0))
-                          : "얼마를 모으고 있나요?"}
+                        {known ? won(wealth!.net) : "얼마를 모으고 있나요?"}
                       </p>
                       <p>
                         {unknown
                           ? `${unknown}개 계좌의 잔액을 등록하면 자산을 더 정확히 볼 수 있어요.`
                           : "기준 잔액과 기록한 거래를 합한 금액이에요."}
                       </p>
+                      <p>
+                        등록 잔액 기준 자산 {won(wealth?.assets ?? 0)} · 부채{" "}
+                        {won(wealth?.debt ?? 0)}
+                        {unknown ? " · 일부 계좌 미확인" : ""}
+                      </p>
                       <button
                         className="ledger-btn"
                         onClick={() => navigate("accounts")}
                       >
-                        {known.length
-                          ? "내 계좌 살펴보기 →"
-                          : "계좌 잔액 등록하기 →"}
+                        {known ? "내 계좌 살펴보기 →" : "계좌 잔액 등록하기 →"}
                       </button>
                     </div>
                     <div className="ledger-hero-mark" aria-hidden="true">

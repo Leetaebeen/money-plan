@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  isLiability,
   goalMetrics,
   goalMonthly,
   goalUsesSpendingAccount,
@@ -213,29 +214,31 @@ export function Goals({ data, busy, change }: PanelProps) {
             </div>
             <fieldset className="ledger-checks">
               <legend>목표에 연결할 계좌</legend>
-              {data.accounts.map((a) => {
-                const used = data.goals.some(
-                  (g) => g.id !== editing.id && g.accountIds.includes(a.id),
-                );
-                return (
-                  <label key={a.id}>
-                    <input
-                      type="checkbox"
-                      checked={ids.includes(a.id)}
-                      disabled={used}
-                      onChange={(e) =>
-                        setIds(
-                          e.target.checked
-                            ? [...ids, a.id]
-                            : ids.filter((id) => id !== a.id),
-                        )
-                      }
-                    />
-                    {a.name}
-                    {used && " · 다른 목표에 연결됨"}
-                  </label>
-                );
-              })}
+              {data.accounts
+                .filter((a) => !isLiability(a))
+                .map((a) => {
+                  const used = data.goals.some(
+                    (g) => g.id !== editing.id && g.accountIds.includes(a.id),
+                  );
+                  return (
+                    <label key={a.id}>
+                      <input
+                        type="checkbox"
+                        checked={ids.includes(a.id)}
+                        disabled={used}
+                        onChange={(e) =>
+                          setIds(
+                            e.target.checked
+                              ? [...ids, a.id]
+                              : ids.filter((id) => id !== a.id),
+                          )
+                        }
+                      />
+                      {a.name}
+                      {used && " · 다른 목표에 연결됨"}
+                    </label>
+                  );
+                })}
             </fieldset>
             <p className="ledger-note">
               {data.monthlyPlan &&

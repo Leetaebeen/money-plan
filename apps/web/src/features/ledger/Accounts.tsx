@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   balance,
+  isLiability,
   money,
   planUsesAccount,
   roles,
@@ -60,7 +61,7 @@ export function Accounts({ data, busy, change }: PanelProps) {
     <section>
       <div className="ledger-section-title">
         <div>
-          <h2>내 계좌와 자산</h2>
+          <h2>내 계좌·카드·대출</h2>
           <p>기준일 00시 잔액에 이후 거래를 더해 계산해요.</p>
         </div>
         <button
@@ -122,7 +123,7 @@ export function Accounts({ data, busy, change }: PanelProps) {
                 />
               </label>
               <label>
-                기준일 00시 잔액 (원)
+                기준일 00시 잔액 (원, 카드 미결제액·대출 잔액은 음수)
                 <input
                   inputMode="numeric"
                   value={opening}
@@ -133,8 +134,9 @@ export function Accounts({ data, busy, change }: PanelProps) {
             </div>
             <p className="ledger-note">
               예: 9월 내역을 가져오려면 9월 1일 00시 잔액을 입력해요. 현재
-              잔액에 지난 거래를 더하면 중복 계산됩니다. 투자계좌는 평가액 조정
-              거래로 변동을 반영할 수 있어요.
+              잔액에 지난 거래를 더하면 중복 계산됩니다. 카드 미결제액이 30만
+              원이면 -300000을 입력해요. 대출도 남은 원금을 음수로 입력해요.
+              투자계좌는 평가액 조정 거래로 변동을 반영할 수 있어요.
             </p>
             {error && (
               <p role="alert" className="ledger-error">
@@ -182,7 +184,13 @@ export function Accounts({ data, busy, change }: PanelProps) {
               </div>
               <h3>{account.name}</h3>
               <strong className="ledger-amount">
-                {current === null ? "잔액 등록 필요" : won(current)}
+                {current === null
+                  ? "잔액 등록 필요"
+                  : isLiability(account)
+                    ? current <= 0
+                      ? `남은 부채 ${won(-current)}`
+                      : `초과 납부·환급 잔액 ${won(current)}`
+                    : won(current)}
               </strong>
               <p className="ledger-note">
                 기준 {account.openingDate} · 최근 거래 {latest?.date ?? "없음"}
