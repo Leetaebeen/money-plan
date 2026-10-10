@@ -1,3 +1,4 @@
+import type { ScheduleView } from "./schedules";
 import { won, type Ledger } from "./model";
 import { upcomingPayments } from "./upcoming-payments";
 
@@ -6,14 +7,17 @@ export function UpcomingPayments({
   onPlan,
 }: {
   data: Ledger;
-  onPlan: () => void;
+  onPlan: (view?: ScheduleView) => void;
 }) {
   const result = upcomingPayments(data);
   return (
     <section className="ledger-panel" aria-label="다가오는 납부 일정">
       <div className="ledger-section-title">
         <h3>앞으로 30일, 납부할 돈</h3>
-        <button className="ledger-text-btn" onClick={onPlan}>
+        <button
+          className="ledger-text-btn"
+          onClick={() => onPlan({ month: result.asOf.slice(0, 7) })}
+        >
           일정 확인 →
         </button>
       </div>
@@ -25,6 +29,12 @@ export function UpcomingPayments({
         <p className="ledger-note">
           이번 달 예정일이 지난 거래 미연결 일정 {result.overdue.length}건이
           별도로 있습니다. 실제 납부 여부를 확인하세요.
+          <button
+            className="ledger-text-btn"
+            onClick={() => onPlan({ month: result.asOf.slice(0, 7) })}
+          >
+            지난 예정일 확인 →
+          </button>
         </p>
       )}
       {!result.rows.length ? (
@@ -55,7 +65,23 @@ export function UpcomingPayments({
             <summary>납부 일정 {result.rows.length}건 보기</summary>
             {result.rows.map((row) => (
               <p key={`${row.schedule.id}:${row.dueDate}`}>
-                {row.dueDate} · {row.schedule.name} · {won(row.schedule.amount)}
+                <button
+                  className="ledger-text-btn"
+                  onClick={() =>
+                    onPlan({
+                      month: row.dueDate.slice(0, 7),
+                      accountId: row.schedule.accountId,
+                      ...(data.accounts.find(
+                        (a) => a.id === row.schedule.targetAccountId,
+                      )?.role === "CREDIT_CARD"
+                        ? { cardId: row.schedule.targetAccountId! }
+                        : {}),
+                    })
+                  }
+                >
+                  {row.dueDate} · {row.schedule.name} ·{" "}
+                  {won(row.schedule.amount)} →
+                </button>
               </p>
             ))}
           </details>

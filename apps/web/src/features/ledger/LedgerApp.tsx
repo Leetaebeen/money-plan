@@ -1,3 +1,4 @@
+import type { ScheduleView } from "./schedules";
 import { useEffect, useRef, useState } from "react";
 import { App as LegacyPlanner } from "../../app/App";
 import { UpdatePrompt } from "../../components/UpdatePrompt";
@@ -34,6 +35,7 @@ const tabs: { id: Screen; label: string; symbol: string }[] = [
 ];
 export function LedgerApp() {
   const [snapshot, setSnapshot] = useState<LedgerSnapshot | null>(null);
+  const [scheduleView, setScheduleView] = useState<ScheduleView | undefined>();
   const [screen, setScreen] = useState<Screen>("home");
   const [busy, setBusy] = useState(false);
   const lock = useRef(false);
@@ -58,7 +60,7 @@ export function LedgerApp() {
     };
   }, []);
   useEffect(() => {
-    heading.current?.focus();
+    heading.current?.focus({ preventScroll: true });
   }, [screen]);
   async function run(
     action: () => Promise<LedgerSnapshot>,
@@ -89,7 +91,8 @@ export function LedgerApp() {
     if (!snapshot) return false;
     return run(() => mutateLedger(snapshot.revision, fn), message);
   }
-  function navigate(next: Screen) {
+  function navigate(next: Screen, view?: ScheduleView) {
+    setScheduleView(view);
     setScreen(next);
     setError("");
     setNotice("");
@@ -254,7 +257,7 @@ export function LedgerApp() {
                   </div>
                   <UpcomingPayments
                     data={data}
-                    onPlan={() => navigate("plan")}
+                    onPlan={(view) => navigate("plan", view)}
                   />
                   <section className="ledger-onboarding ledger-salary-home">
                     <div>
@@ -358,6 +361,7 @@ export function LedgerApp() {
               )}
               {screen === "plan" && (
                 <MonthlyPlan
+                  scheduleView={scheduleView}
                   data={data}
                   busy={busy}
                   change={change}
