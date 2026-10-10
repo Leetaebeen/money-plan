@@ -1,3 +1,4 @@
+import type { ScheduleView } from "./schedules";
 import { useState } from "react";
 import {
   isLiability,
@@ -16,7 +17,11 @@ import { CardPayments } from "./CardPayments";
 import { ScheduledPayments } from "./ScheduledPayments";
 import { Empty, type PanelProps } from "./shared";
 
-type Props = PanelProps & { onGoals: () => void; onAccounts: () => void };
+type Props = PanelProps & {
+  onGoals: () => void;
+  onAccounts: () => void;
+  scheduleView?: ScheduleView;
+};
 
 export function MonthlyPlan({
   data,
@@ -24,6 +29,7 @@ export function MonthlyPlan({
   change,
   onGoals,
   onAccounts,
+  scheduleView,
 }: Props) {
   const [editing, setEditing] = useState(!data.monthlyPlan);
   const [draft, setDraft] = useState(() => draftFrom(data));
@@ -107,7 +113,12 @@ export function MonthlyPlan({
         )}
       </div>
       <CardPayments data={data} busy={busy} change={change} />
-      <ScheduledPayments data={data} busy={busy} change={change} />
+      <ScheduledPayments
+        initialView={scheduleView}
+        data={data}
+        busy={busy}
+        change={change}
+      />
       {editing && (
         <form className="ledger-panel ledger-form" onSubmit={save}>
           <fieldset disabled={busy}>

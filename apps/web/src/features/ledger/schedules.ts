@@ -279,3 +279,9 @@ export function updateOneTimePayment(
   validateSchedules({ ...data, schedules });
   data.schedules = schedules;
 }
+
+export interface ScheduleView {
+  month: string;
+  accountId?: string;
+  cardId?: string;
+}

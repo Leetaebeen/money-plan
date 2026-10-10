@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { money, today, won, type PaymentSchedule } from "./model";
 import {
+  type ScheduleView,
   updateOneTimePayment,
   paymentCandidates,
   recordScheduledPayment,
@@ -8,8 +9,24 @@ import {
 } from "./schedules";
 import type { PanelProps } from "./shared";
 
-export function ScheduledPayments({ data, busy, change }: PanelProps) {
-  const [month, setMonth] = useState(today().slice(0, 7));
+export function ScheduledPayments({
+  data,
+  busy,
+  change,
+  initialView,
+}: PanelProps & { initialView?: ScheduleView }) {
+  const sectionRef = useRef<HTMLElement>(null);
+  const [month, setMonth] = useState(initialView?.month ?? today().slice(0, 7));
+  const [sourceFilter, setSourceFilter] = useState(
+    initialView?.accountId ?? "",
+  );
+  const [cardFilter, setCardFilter] = useState(initialView?.cardId ?? "");
+  const [statusFilter, setStatusFilter] = useState(
+    initialView ? "unlinked" : "all",
+  );
+  useEffect(() => {
+    if (initialView) sectionRef.current?.scrollIntoView({ block: "start" });
+  }, [initialView]);
   const [editing, setEditing] = useState<string | null>(null);
   const [editDate, setEditDate] = useState("");
   const [editAmount, setEditAmount] = useState("");
@@ -37,7 +54,19 @@ export function ScheduledPayments({ data, busy, change }: PanelProps) {
   const [entryId, setEntry] = useState("");
   const [date, setDate] = useState(today());
   const [error, setError] = useState("");
-  const rows = scheduleMonth(data, month);
+  const allRows = scheduleMonth(data, month);
+  const rows = allRows.filter(
+    (row) =>
+      (!sourceFilter || row.schedule.accountId === sourceFilter) &&
+      (!cardFilter || row.schedule.targetAccountId === cardFilter) &&
+      (statusFilter === "all" ||
+        (statusFilter === "linked" ? !!row.payment : !row.payment)),
+  );
+  function resetSelection() {
+    setSelection(null);
+    setEditing(null);
+    setError("");
+  }
   const selected = data.schedules.find((s) => s.id === selection?.id);
   const candidates = selected ? paymentCandidates(data, selected) : [];
   async function add(event: React.FormEvent) {
@@ -69,7 +98,11 @@ export function ScheduledPayments({ data, busy, change }: PanelProps) {
     }
   }
   return (
-    <section className="ledger-panel" aria-label="매월 납부 일정">
+    <section
+      ref={sectionRef}
+      className="ledger-panel"
+      aria-label="매월 납부 일정"
+    >
       <div className="ledger-section-title">
         <h3>고정비·적금·카드 납부 일정</h3>
         <button
@@ -271,6 +304,73 @@ export function ScheduledPayments({ data, busy, change }: PanelProps) {
           }}
         />
       </label>
+      <div className="ledger-fields">
+        <label>
+          결제 계좌 필터
+          <select
+            value={sourceFilter}
+            onChange={(e) => {
+              setSourceFilter(e.target.value);
+              resetSelection();
+            }}
+          >
+            <option value="">전체 계좌</option>
+            {data.accounts.map((a) => (
+              <option value={a.id} key={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          결제 카드 필터
+          <select
+            value={cardFilter}
+            onChange={(e) => {
+              setCardFilter(e.target.value);
+              resetSelection();
+            }}
+          >
+            <option value="">전체 일정</option>
+            {data.accounts
+              .filter((a) => a.role === "CREDIT_CARD")
+              .map((a) => (
+                <option value={a.id} key={a.id}>
+                  {a.name}
+                </option>
+              ))}
+          </select>
+        </label>
+        <label>
+          거래 연결 상태
+          <select
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              resetSelection();
+            }}
+          >
+            <option value="all">전체</option>
+            <option value="unlinked">미연결</option>
+            <option value="linked">연결됨</option>
+          </select>
+        </label>
+      </div>
+      <p className="ledger-note">
+        이달 {allRows.length}건 중 {rows.length}건 표시 · 아래 합계는 선택한
+        조건 기준입니다.{" "}
+        <button
+          className="ledger-text-btn"
+          onClick={() => {
+            setSourceFilter("");
+            setCardFilter("");
+            setStatusFilter("all");
+            resetSelection();
+          }}
+        >
+          필터 초기화
+        </button>
+      </p>
       <dl className="ledger-budget-breakdown">
         <div>
           <dt>거래 미연결 예정 지출</dt>
@@ -317,7 +417,9 @@ export function ScheduledPayments({ data, busy, change }: PanelProps) {
         )}
       </p>
       {!rows.length && (
-        <p className="ledger-note">이달에 해당하는 납부 일정이 없습니다.</p>
+        <p className="ledger-note">
+          선택한 월·필터에 해당하는 납부 일정이 없습니다.
+        </p>
       )}
       <div className="ledger-stack">
         {rows.map(({ schedule: s, dueDate, payment, status }) => (
