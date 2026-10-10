@@ -1,3 +1,4 @@
+import { upcomingPayments } from "../src/features/ledger/upcoming-payments.ts";
 import {
   addCardPayments,
   previewCardPayments,
@@ -2178,4 +2179,52 @@ test("one-time payment corrections preserve other installments and actual entrie
     () => updateOneTimePayment(data, id, "2026-01-30", 35000),
     /1회/,
   );
+});
+
+test("upcoming payments span months and exclude linked, overdue and outside-window dues", () => {
+  const data = cardBudgetFixture();
+  addCardPayments(data, cardPaymentInput());
+  let result = upcomingPayments(data, "2026-01-30");
+  assert.equal(result.end, "2026-02-28");
+  assert.equal(result.rows.length, 2);
+  assert.equal(result.total, 66666);
+  recordScheduledPayment(data, data.schedules[0]!.id, "2026-01-31", {
+    date: "2026-01-31",
+  });
+  result = upcomingPayments(data, "2026-02-01");
+  assert.equal(result.rows.length, 1);
+  assert.equal(result.total, 33333);
+  data.schedules[0]!.payments = [];
+  result = upcomingPayments(data, "2026-01-31");
+  assert.equal(result.rows[0]!.dueDate, "2026-01-31");
+  result = upcomingPayments(data, "2026-02-28");
+  assert.equal(result.rows.length, 1);
+  result = upcomingPayments(data, "2026-03-01");
+  assert.equal(result.rows.length, 0);
+  assert.equal(result.overdue.length, 0);
+});
+
+test("upcoming funding compares each source separately without assuming investment liquidity", () => {
+  const data = cardBudgetFixture();
+  addCardPayments(data, { ...cardPaymentInput(), count: 1 });
+  data.accounts[0]!.openingBalance = 0;
+  const before = structuredClone(data);
+  let result = upcomingPayments(data, "2026-01-30");
+  assert.equal(result.accounts[0]!.shortfall, 260001);
+  assert.deepEqual(data, before);
+  data.accounts[0]!.openingBalance = null;
+  assert.equal(
+    upcomingPayments(data, "2026-01-30").accounts[0]!.shortfall,
+    null,
+  );
+  data.schedules[0]!.accountId = "save";
+  assert.equal(upcomingPayments(data, "2026-01-30").accounts[0]!.current, null);
+  data.schedules[0]!.startDate = "2026-01-15";
+  data.schedules[0]!.endDate = "2026-01-15";
+  data.schedules[0]!.day = 15;
+  result = upcomingPayments(data, "2026-01-30");
+  assert.equal(result.total, 0);
+  assert.equal(result.overdue.length, 1);
+  assert.throws(() => upcomingPayments(data, "not-a-date"));
+  assert.equal(upcomingPayments(data, "2099-12-31").end, "2099-12-31");
 });

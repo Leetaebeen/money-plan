@@ -14,6 +14,7 @@ import { Goals, GoalCard } from "./Goals";
 import { Transactions } from "./Transactions";
 import { BackupPanel } from "./BackupPanel";
 import { MonthlyPlan } from "./MonthlyPlan";
+import { UpcomingPayments } from "./UpcomingPayments";
 import { monthlyMetrics } from "./monthly-plan";
 import "./ledger.css";
 type Screen =
@@ -251,6 +252,10 @@ export function LedgerApp() {
                       <small>이번 달 입력·가져오기 기준</small>
                     </article>
                   </div>
+                  <UpcomingPayments
+                    data={data}
+                    onPlan={() => navigate("plan")}
+                  />
                   <section className="ledger-onboarding ledger-salary-home">
                     <div>
                       <span className="ledger-eyebrow">월급 배분 계획</span>
