@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { money, today, won, type PaymentSchedule } from "./model";
 import {
+  updateOneTimePayment,
   paymentCandidates,
   recordScheduledPayment,
   scheduleMonth,
@@ -9,6 +10,17 @@ import type { PanelProps } from "./shared";
 
 export function ScheduledPayments({ data, busy, change }: PanelProps) {
   const [month, setMonth] = useState(today().slice(0, 7));
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editDate, setEditDate] = useState("");
+  const [editAmount, setEditAmount] = useState("");
+  const editSchedule = (schedule: PaymentSchedule) => {
+    setEditing(schedule.id);
+    setEditDate(schedule.startDate);
+    setEditAmount(String(schedule.amount));
+    setSelection(null);
+    setAdding(false);
+    setError("");
+  };
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
   const [value, setValue] = useState("");
@@ -65,6 +77,7 @@ export function ScheduledPayments({ data, busy, change }: PanelProps) {
           disabled={busy}
           onClick={() => {
             setAdding(!adding);
+            setEditing(null);
             setError("");
           }}
         >
@@ -169,6 +182,76 @@ export function ScheduledPayments({ data, busy, change }: PanelProps) {
           </fieldset>
         </form>
       )}
+      {editing && (
+        <form
+          className="ledger-form"
+          onSubmit={async (event) => {
+            event.preventDefault();
+            setError("");
+            try {
+              const amount = money(editAmount);
+              if (
+                await change(
+                  (next) =>
+                    updateOneTimePayment(next, editing, editDate, amount),
+                  "결제 예정을 수정했어요. 실제 거래와 다른 회차는 그대로예요.",
+                )
+              ) {
+                setMonth(editDate.slice(0, 7));
+                setEditing(null);
+              }
+            } catch (e) {
+              setError(
+                e instanceof Error ? e.message : "입력을 확인해 주세요.",
+              );
+            }
+          }}
+        >
+          <h4>
+            {data.schedules.find((s) => s.id === editing)?.name} · 결제 예정
+            수정
+          </h4>
+          <fieldset disabled={busy}>
+            <div className="ledger-fields">
+              <label>
+                예정 금액 (원)
+                <input
+                  autoFocus
+                  required
+                  inputMode="numeric"
+                  value={editAmount}
+                  onChange={(e) => setEditAmount(e.target.value)}
+                />
+              </label>
+              <label>
+                결제 예정일
+                <input
+                  required
+                  type="date"
+                  min="2000-01-01"
+                  max="2099-12-31"
+                  value={editDate}
+                  onChange={(e) => setEditDate(e.target.value)}
+                />
+              </label>
+            </div>
+            <p className="ledger-note">
+              선택한 회차만 변경합니다. 다른 할부 회차나 실제 거래 금액은
+              자동으로 조정하지 않아요.
+            </p>
+            <div className="ledger-actions">
+              <button className="ledger-btn ledger-primary">변경 저장</button>
+              <button
+                type="button"
+                className="ledger-btn"
+                onClick={() => setEditing(null)}
+              >
+                취소
+              </button>
+            </div>
+          </fieldset>
+        </form>
+      )}
       <label className="ledger-actual-month">
         일정 조회 월
         <input
@@ -260,11 +343,21 @@ export function ScheduledPayments({ data, busy, change }: PanelProps) {
               {payment &&
                 ` · 실제 거래일 ${data.entries.find((e) => e.id === payment.entryId)?.date}`}
             </p>
+            {s.startDate === s.endDate && !s.payments.length && (
+              <button
+                className="ledger-text-btn"
+                disabled={busy}
+                onClick={() => editSchedule(s)}
+              >
+                예정 금액·날짜 수정
+              </button>
+            )}
             {!payment ? (
               <button
                 className="ledger-btn"
                 disabled={busy}
                 onClick={() => {
+                  setEditing(null);
                   setSelection({ id: s.id, dueDate });
                   setEntry("");
                   setDate(today());
@@ -417,6 +510,15 @@ export function ScheduledPayments({ data, busy, change }: PanelProps) {
               <p className="ledger-note">
                 {s.startDate} ~ {s.endDate ?? "종료일 없음"}
               </p>
+              {s.startDate === s.endDate && !s.payments.length && (
+                <button
+                  className="ledger-text-btn"
+                  disabled={busy}
+                  onClick={() => editSchedule(s)}
+                >
+                  예정 금액·날짜 수정
+                </button>
+              )}
               <button
                 className="ledger-text-btn"
                 disabled={busy}

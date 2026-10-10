@@ -234,3 +234,48 @@ export function scheduleMonth(data: Ledger, month: string, asOf = today()) {
         a.schedule.name.localeCompare(b.schedule.name, "ko"),
     );
 }
+
+export function updateOneTimePayment(
+  data: Ledger,
+  id: string,
+  date: string,
+  amount: number,
+) {
+  const index = data.schedules.findIndex((s) => s.id === id);
+  const old = data.schedules[index];
+  if (!old || old.startDate !== old.endDate)
+    throw new Error("1회 납부 일정만 수정할 수 있습니다.");
+  if (old.payments.length)
+    throw new Error(
+      "납부 거래가 연결된 일정은 먼저 연결을 해제해 주세요. 실제 거래는 별도로 수정해야 합니다.",
+    );
+  if (
+    !validDate(date) ||
+    [old.accountId, old.targetAccountId].filter(Boolean).some((accountId) => {
+      const account = data.accounts.find((a) => a.id === accountId);
+      return !account || date < account.openingDate;
+    })
+  )
+    throw new Error("계좌 기준일 이후의 올바른 예정일을 입력해 주세요.");
+  if (
+    data.accounts.find((a) => a.id === old.targetAccountId)?.role ===
+      "CREDIT_CARD" &&
+    data.schedules.some(
+      (s) =>
+        s.id !== id &&
+        s.targetAccountId === old.targetAccountId &&
+        scheduleDate(s, date.slice(0, 7)) !== null,
+    )
+  )
+    throw new Error("같은 카드의 해당 월 결제 일정이 이미 있습니다.");
+  const next = {
+    ...old,
+    amount,
+    day: Number(date.slice(8)),
+    startDate: date,
+    endDate: date,
+  };
+  const schedules = data.schedules.map((s, i) => (i === index ? next : s));
+  validateSchedules({ ...data, schedules });
+  data.schedules = schedules;
+}

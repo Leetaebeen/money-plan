@@ -42,6 +42,7 @@ import { goalScenario } from "../src/features/ledger/goal-scenario.ts";
 import { maturityMetrics } from "../src/features/ledger/maturities.ts";
 import { captureMonthlyPlan } from "../src/features/ledger/plan-history.ts";
 import {
+  updateOneTimePayment,
   scheduleDate,
   scheduleMonth,
   recordScheduledPayment,
@@ -2139,4 +2140,42 @@ test("duplicate card months, invalid accounts and schedule limits fail atomicall
   }));
   assert.throws(() => addCardPayments(data, cardPaymentInput()), /납부 일정/);
   assert.equal(data.schedules.length, 99);
+});
+
+test("one-time payment corrections preserve other installments and actual entries", () => {
+  const data = cardBudgetFixture();
+  addCardPayments(data, cardPaymentInput());
+  const before = structuredClone(data);
+  const id = data.schedules[0]!.id;
+  updateOneTimePayment(data, id, "2026-01-30", 34000);
+  validateLedger(data);
+  assert.equal(data.schedules[0]!.amount, 34000);
+  assert.equal(scheduleDate(data.schedules[0]!, "2026-01"), "2026-01-30");
+  assert.deepEqual(data.schedules.slice(1), before.schedules.slice(1));
+  assert.deepEqual(data.entries, before.entries);
+  const updated = structuredClone(data);
+  assert.throws(
+    () => updateOneTimePayment(data, id, "2026-02-15", 34000),
+    /이미/,
+  );
+  assert.throws(
+    () => updateOneTimePayment(data, id, "2025-12-31", 34000),
+    /기준일/,
+  );
+  assert.throws(
+    () => updateOneTimePayment(data, id, "2026-01-30", 0),
+    /납부 일정/,
+  );
+  assert.deepEqual(data, updated);
+  recordScheduledPayment(data, id, "2026-01-30", { date: "2026-01-30" });
+  assert.throws(
+    () => updateOneTimePayment(data, id, "2026-01-30", 35000),
+    /연결/,
+  );
+  data.schedules[0]!.payments = [];
+  data.schedules[0]!.endDate = null;
+  assert.throws(
+    () => updateOneTimePayment(data, id, "2026-01-30", 35000),
+    /1회/,
+  );
 });
