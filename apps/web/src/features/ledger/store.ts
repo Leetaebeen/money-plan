@@ -25,6 +25,8 @@ function ordered(data: Ledger): Ledger {
     "SAVINGS",
     "ISA",
     "PENSION",
+    "CREDIT_CARD",
+    "LOAN",
   ];
   data.accounts.sort(
     (a, b) =>
@@ -49,7 +51,7 @@ async function read(): Promise<LedgerSnapshot> {
   return {
     revision: meta?.revision ?? 0,
     data: ordered({
-      schemaVersion: 5,
+      schemaVersion: 6,
       planHistory: meta?.planHistory ?? [],
       maturities: meta?.maturities ?? [],
       schedules: meta?.schedules ?? [],

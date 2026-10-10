@@ -12,6 +12,13 @@ export function CycleBudget({ data }: { data: Ledger }) {
         <br />
         다음 예정 월급일 {result.next} · 오늘 포함 {result.daysLeft}일 남음
       </p>
+      {result.hasCard && (
+        <p className="ledger-note">
+          카드 사용액의 고정비·생활비 구분이 아직 연결되지 않아 남은 예산과 하루
+          기준액은 계산하지 않습니다. 아래 지출은 선택한 은행 계좌 기록만
+          집계합니다. 전체 카드 소비는 홈의 이번 달 소비에서 확인하세요.
+        </p>
+      )}
       <div className="ledger-stack">
         {result.rows.map((row) => (
           <article className="ledger-funding-goal" key={row.account.id}>

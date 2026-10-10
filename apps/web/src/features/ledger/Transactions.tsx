@@ -149,6 +149,13 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
           </button>
         </div>
       </div>
+      <p className="ledger-note">
+        신용카드 사용은 카드 계좌의 지출, 환불은 카드 계좌의 환불로 입력해요.
+        카드대금 결제·대출 원금 상환은 은행 계좌 → 카드·대출 계좌 이동으로, 대출
+        실행은 대출 → 입금 계좌 이동으로 기록해요. 이자·수수료는 별도 지출로
+        입력하세요. 기존 결제대금을 지출로 기록했다면 계좌 이동으로 수정해야
+        중복 소비가 사라집니다.
+      </p>
       {showImport && <ImportPanel snapshot={snapshot} busy={busy} run={run} />}
       {editing && (
         <form className="ledger-panel ledger-form" onSubmit={save}>
@@ -175,7 +182,9 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
                   value={kind}
                   onChange={(e) => {
                     const nextKind = e.target.value as EntryKind;
-                    setValue(reformatEntryAmount(value, kind, nextKind, imported));
+                    setValue(
+                      reformatEntryAmount(value, kind, nextKind, imported),
+                    );
                     setKind(nextKind);
                   }}
                 >
