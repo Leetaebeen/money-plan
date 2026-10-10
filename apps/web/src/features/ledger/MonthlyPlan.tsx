@@ -12,6 +12,7 @@ import { monthlyMetrics } from "./monthly-plan";
 import { SavingsActuals } from "./SavingsActuals";
 import { captureMonthlyPlan } from "./plan-history";
 import { CycleBudget } from "./CycleBudget";
+import { CardPayments } from "./CardPayments";
 import { ScheduledPayments } from "./ScheduledPayments";
 import { Empty, type PanelProps } from "./shared";
 
@@ -105,6 +106,7 @@ export function MonthlyPlan({
           </button>
         )}
       </div>
+      <CardPayments data={data} busy={busy} change={change} />
       <ScheduledPayments data={data} busy={busy} change={change} />
       {editing && (
         <form className="ledger-panel ledger-form" onSubmit={save}>

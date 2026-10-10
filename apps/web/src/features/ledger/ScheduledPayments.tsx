@@ -59,7 +59,7 @@ export function ScheduledPayments({ data, busy, change }: PanelProps) {
   return (
     <section className="ledger-panel" aria-label="매월 납부 일정">
       <div className="ledger-section-title">
-        <h3>고정비·적금 납부 일정</h3>
+        <h3>고정비·적금·카드 납부 일정</h3>
         <button
           className="ledger-btn"
           disabled={busy}
@@ -210,6 +210,29 @@ export function ScheduledPayments({ data, busy, change }: PanelProps) {
           </dd>
         </div>
       </dl>
+      <p className="ledger-note">
+        이달 등록한 카드 결제 예정액{" "}
+        {won(
+          rows
+            .filter(
+              (r) =>
+                data.accounts.find((a) => a.id === r.schedule.targetAccountId)
+                  ?.role === "CREDIT_CARD",
+            )
+            .reduce((sum, r) => sum + r.schedule.amount, 0),
+        )}{" "}
+        · 거래 미연결{" "}
+        {won(
+          rows
+            .filter(
+              (r) =>
+                !r.payment &&
+                data.accounts.find((a) => a.id === r.schedule.targetAccountId)
+                  ?.role === "CREDIT_CARD",
+            )
+            .reduce((sum, r) => sum + r.schedule.amount, 0),
+        )}
+      </p>
       {!rows.length && (
         <p className="ledger-note">이달에 해당하는 납부 일정이 없습니다.</p>
       )}
@@ -387,7 +410,9 @@ export function ScheduledPayments({ data, busy, change }: PanelProps) {
           {data.schedules.map((s) => (
             <div className="ledger-funding-goal" key={s.id}>
               <p>
-                {s.name} · 매월 {s.day}일 · {won(s.amount)}
+                {s.name} ·{" "}
+                {s.startDate === s.endDate ? s.startDate : `매월 ${s.day}일`} ·{" "}
+                {won(s.amount)}
               </p>
               <p className="ledger-note">
                 {s.startDate} ~ {s.endDate ?? "종료일 없음"}
@@ -398,7 +423,7 @@ export function ScheduledPayments({ data, busy, change }: PanelProps) {
                 onClick={() => {
                   if (
                     window.confirm(
-                      "이 반복 일정과 납부 연결을 삭제할까요? 실제 거래는 유지됩니다. 변경된 일정은 새로 등록할 수 있어요.",
+                      "이 일정과 납부 연결을 삭제할까요? 실제 거래는 유지됩니다. 변경된 일정은 새로 등록할 수 있어요.",
                     )
                   )
                     void change((next) => {
