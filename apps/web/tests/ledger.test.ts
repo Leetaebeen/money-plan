@@ -1,3 +1,7 @@
+import {
+  addCardPayments,
+  previewCardPayments,
+} from "../src/features/ledger/card-payments.ts";
 import "fake-indexeddb/auto";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -2027,4 +2031,112 @@ test("card budget validation and encrypted backups preserve assignments", async 
   delete data.entries[3]!.cardBudget;
   data.entries[5]!.cardBudget = "LIVING";
   assert.throws(() => validateLedger(data), /카드 예산/);
+});
+
+function cardPaymentInput() {
+  return {
+    name: "카드 할부",
+    accountId: "cash",
+    cardId: "card",
+    total: 100001,
+    count: 3,
+    firstDate: "2026-01-31",
+  };
+}
+
+test("installment dates preserve month-end intent and every won", () => {
+  const input = cardPaymentInput();
+  assert.deepEqual(previewCardPayments(input), [
+    { date: "2026-01-31", amount: 33333 },
+    { date: "2026-02-28", amount: 33333 },
+    { date: "2026-03-31", amount: 33335 },
+  ]);
+  assert.equal(
+    previewCardPayments({ ...input, firstDate: "2028-01-31" })[1]!.date,
+    "2028-02-29",
+  );
+  assert.deepEqual(previewCardPayments({ ...input, count: 1 }), [
+    { date: "2026-01-31", amount: 100001 },
+  ]);
+  for (const count of [0, 37, 1.5])
+    assert.throws(() => previewCardPayments({ ...input, count }));
+  assert.throws(() => previewCardPayments({ ...input, total: 2 }));
+  assert.throws(() =>
+    previewCardPayments({ ...input, firstDate: "2099-12-31" }),
+  );
+});
+
+test("card installment schedules preserve balances until actual settlement and survive backups", async () => {
+  const data = cardBudgetFixture();
+  const entries = structuredClone(data.entries);
+  const before = netWorth(data, "2026-02-01");
+  addCardPayments(data, cardPaymentInput());
+  validateLedger(data);
+  assert.deepEqual(data.entries, entries);
+  assert.deepEqual(netWorth(data, "2026-02-01"), before);
+  assert.equal(scheduleMonth(data, "2026-02").length, 1);
+  assert.equal(scheduleMonth(data, "2026-04").length, 0);
+  assert.equal(
+    data.schedules.reduce((n, s) => n + s.amount, 0),
+    100001,
+  );
+  const first = data.schedules[0]!;
+  recordScheduledPayment(data, first.id, first.startDate, {
+    date: first.startDate,
+  });
+  validateLedger(data);
+  assert.deepEqual(netWorth(data, "2026-02-01").net, before.net);
+  assert.ok(
+    data.entries.slice(entries.length).every((e) => e.kind === "TRANSFER"),
+  );
+  assert.deepEqual(
+    await decryptBackup(
+      await encryptBackup(data, "installment-test-passphrase"),
+      "installment-test-passphrase",
+    ),
+    data,
+  );
+});
+
+test("duplicate card months, invalid accounts and schedule limits fail atomically", () => {
+  const data = cardBudgetFixture();
+  addCardPayments(data, cardPaymentInput());
+  const snapshot = structuredClone(data);
+  assert.throws(
+    () =>
+      addCardPayments(data, {
+        ...cardPaymentInput(),
+        name: "청구 총액",
+        firstDate: "2026-02-25",
+        count: 1,
+      }),
+    /이미/,
+  );
+  assert.deepEqual(data, snapshot);
+  assert.throws(
+    () => addCardPayments(data, { ...cardPaymentInput(), accountId: "card" }),
+    /은행/,
+  );
+  assert.throws(
+    () => addCardPayments(data, { ...cardPaymentInput(), cardId: "save" }),
+    /신용카드/,
+  );
+  assert.throws(
+    () =>
+      addCardPayments(data, { ...cardPaymentInput(), firstDate: "2025-12-31" }),
+    /기준일/,
+  );
+  data.schedules = Array.from({ length: 99 }, (_, i) => ({
+    id: `existing-${i}`,
+    name: "기존 일정",
+    accountId: "cash",
+    targetAccountId: null,
+    amount: 1,
+    day: 1,
+    startDate: "2026-01-01",
+    endDate: null,
+    payments: [],
+  }));
+  assert.throws(() => addCardPayments(data, cardPaymentInput()), /납부 일정/);
+  assert.equal(data.schedules.length, 99);
 });
