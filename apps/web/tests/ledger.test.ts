@@ -1,3 +1,4 @@
+import { wealthHistory } from "../src/features/ledger/wealth-history.ts";
 import { searchTransactions } from "../src/features/ledger/transaction-search.ts";
 import { spendingSummary } from "../src/features/ledger/spending-summary.ts";
 import { compareBackup } from "../src/features/ledger/backup-comparison.ts";
@@ -2390,4 +2391,83 @@ test("transaction search combines keywords, account, month and kind without modi
     4,
   );
   assert.deepEqual(entries, before);
+});
+
+test("wealth history uses month-end balances, current cutoff and preserves internal transfers", () => {
+  const data = fixture();
+  data.entries = [
+    entry({ id: "income", date: "2026-01-31", kind: "INCOME", amount: 100000 }),
+    entry({
+      id: "expense",
+      date: "2026-02-28",
+      kind: "EXPENSE",
+      amount: -20000,
+    }),
+    entry({
+      id: "out",
+      date: "2026-02-01",
+      kind: "TRANSFER",
+      amount: -50000,
+      pairId: "move",
+    }),
+    entry({
+      id: "in",
+      accountId: "save",
+      date: "2026-02-01",
+      kind: "TRANSFER",
+      amount: 50000,
+      pairId: "move",
+    }),
+    entry({
+      id: "value",
+      accountId: "save",
+      date: "2026-03-05",
+      kind: "ADJUSTMENT",
+      amount: 500000,
+    }),
+    entry({
+      id: "future",
+      date: "2026-03-11",
+      kind: "EXPENSE",
+      amount: -12345,
+    }),
+  ];
+  const before = structuredClone(data);
+  const rows = wealthHistory(data, "2026-03-10");
+  assert.equal(rows.length, 6);
+  assert.deepEqual(
+    rows.slice(-3).map((r) => [r.date, r.net, r.change]),
+    [
+      ["2026-01-31", 11100000, null],
+      ["2026-02-28", 11080000, -20000],
+      ["2026-03-10", 11580000, 500000],
+    ],
+  );
+  assert.equal(rows[2]!.net, null);
+  assert.deepEqual(data, before);
+});
+
+test("wealth history includes debt and withholds incomplete or empty account totals", () => {
+  const data = fixture();
+  data.accounts.push({
+    id: "loan",
+    name: "대출",
+    role: "LOAN",
+    openingBalance: -1000000,
+    openingDate: "2026-01-01",
+  });
+  let latest = wealthHistory(data, "2026-02-28").at(-1)!;
+  assert.equal(latest.debt, 1000000);
+  assert.equal(latest.net, 10000000);
+  assert.equal(latest.change, 0);
+  data.accounts[2]!.openingDate = "2026-02-01";
+  latest = wealthHistory(data, "2026-02-28").at(-1)!;
+  assert.equal(latest.net, 10000000);
+  assert.equal(latest.change, null);
+  data.accounts[2]!.openingBalance = null;
+  assert.equal(wealthHistory(data, "2026-02-28").at(-1)!.net, null);
+  data.accounts = [];
+  assert.equal(wealthHistory(data, "2026-02-28").at(-1)!.net, null);
+  assert.equal(wealthHistory(data, "2000-01-01").length, 1);
+  assert.throws(() => wealthHistory(data, "2026-02-30"));
 });

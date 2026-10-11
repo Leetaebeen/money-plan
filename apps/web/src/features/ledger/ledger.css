@@ -973,3 +973,8 @@ body:has(.ledger) {
     padding: 16px;
   }
 }
+
+.ledger-history-scroll { overflow-x: auto; }
+.ledger-history-table { width: 100%; border-collapse: collapse; white-space: nowrap; }
+.ledger-history-table th, .ledger-history-table td { padding: 12px; border-bottom: 1px solid var(--lg-line); text-align: right; }
+.ledger-history-table th:first-child { text-align: left; }

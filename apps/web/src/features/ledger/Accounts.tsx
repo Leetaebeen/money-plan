@@ -1,3 +1,4 @@
+import { WealthHistory } from "./WealthHistory";
 import { useState } from "react";
 import {
   balance,
@@ -159,6 +160,7 @@ export function Accounts({ data, busy, change }: PanelProps) {
       {!data.accounts.length && (
         <Empty>계좌를 추가하고 잔액을 등록해 주세요.</Empty>
       )}
+      <WealthHistory data={data} />
       <MaturityPlans data={data} busy={busy} change={change} />
       <div className="ledger-account-grid">
         {data.accounts.map((account) => {
