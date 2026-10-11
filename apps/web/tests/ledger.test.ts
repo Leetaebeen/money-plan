@@ -1,3 +1,4 @@
+import { spendingSummary } from "../src/features/ledger/spending-summary.ts";
 import { compareBackup } from "../src/features/ledger/backup-comparison.ts";
 import { upcomingPayments } from "../src/features/ledger/upcoming-payments.ts";
 import {
@@ -2286,4 +2287,45 @@ test("backup comparison ignores key and record ordering but detects plan deletio
       .removed,
     1,
   );
+});
+
+test("category spending excludes transfers, income, adjustments and future records", () => {
+  const entries = [
+    entry({ amount: -10000, category: "식비" }),
+    entry({ id: "refund", kind: "REFUND", amount: 2000, category: "식비" }),
+    entry({ id: "card", accountId: "card", amount: -5000, category: "교통" }),
+    entry({ id: "payment", kind: "TRANSFER", amount: -10000 }),
+    entry({ id: "income", kind: "INCOME", amount: 1000000 }),
+    entry({ id: "adjust", kind: "ADJUSTMENT", amount: -500000 }),
+    entry({ id: "future", date: "2026-02-01", amount: -99999 }),
+  ];
+  const before = structuredClone(entries);
+  const report = spendingSummary(entries, "2026-01-31");
+  assert.equal(report.spent, 15000);
+  assert.equal(report.refunded, 2000);
+  assert.equal(report.net, 13000);
+  assert.equal(report.count, 3);
+  assert.deepEqual(
+    report.rows.map((r) => [r.category, r.net]),
+    [
+      ["식비", 8000],
+      ["교통", 5000],
+    ],
+  );
+  assert.deepEqual(entries, before);
+});
+
+test("refund-only categories keep negative consumption and empty summaries remain zero", () => {
+  const report = spendingSummary(
+    [
+      entry({ kind: "REFUND", amount: 5000, category: "쇼핑" }),
+      entry({ amount: -1000, category: " " }),
+    ],
+    "2026-01-31",
+  );
+  assert.equal(report.net, -4000);
+  assert.equal(report.rows[0]!.category, "미분류");
+  assert.equal(report.rows[1]!.net, -5000);
+  assert.equal(spendingSummary([], "2026-01-31").net, 0);
+  assert.throws(() => spendingSummary([], "invalid"));
 });

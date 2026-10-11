@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { SpendingSummary } from "./SpendingSummary";
+import { useMemo, useState } from "react";
 import {
   kinds,
   money,
@@ -32,6 +33,7 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("미분류");
   const [error, setError] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
   const [filter, setFilter] = useState("");
   const [month, setMonth] = useState(today().slice(0, 7));
   const [page, setPage] = useState(0);
@@ -123,13 +125,27 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
       setError(e instanceof Error ? e.message : "입력을 확인해 주세요.");
     }
   }
-  const visible = data.entries
-    .filter(
-      (e) =>
-        (!filter || e.accountId === filter) &&
-        (!month || e.date.startsWith(month)),
-    )
-    .sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id));
+  const baseVisible = useMemo(
+    () =>
+      data.entries
+        .filter(
+          (e) =>
+            (!filter || e.accountId === filter) &&
+            (!month || e.date.startsWith(month)),
+        )
+        .sort(
+          (a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id),
+        ),
+    [data.entries, filter, month],
+  );
+  const visible = categoryFilter
+    ? baseVisible.filter(
+        (e) =>
+          (e.kind === "EXPENSE" || e.kind === "REFUND") &&
+          e.date <= today() &&
+          (e.category.trim() || "미분류") === categoryFilter,
+      )
+    : baseVisible;
   const imported =
     typeof editing === "object" && editing !== null && editing.batchId !== null;
   return (
@@ -337,6 +353,7 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
             value={month}
             onChange={(e) => {
               setMonth(e.target.value);
+              setCategoryFilter("");
               setPage(0);
             }}
           />
@@ -347,6 +364,7 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
             value={filter}
             onChange={(e) => {
               setFilter(e.target.value);
+              setCategoryFilter("");
               setPage(0);
             }}
           >
@@ -359,9 +377,17 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
           </select>
         </label>
       </div>
+      <SpendingSummary
+        entries={baseVisible}
+        selected={categoryFilter}
+        onSelect={(category) => {
+          setCategoryFilter(category);
+          setPage(0);
+        }}
+      />
       {!visible.length ? (
         <Empty>
-          조회한 기간에 거래가 없어요. 내역 파일을 가져오거나 직접 입력해
+          선택한 조회 조건에 거래가 없어요. 내역 파일을 가져오거나 직접 입력해
           보세요.
         </Empty>
       ) : (
