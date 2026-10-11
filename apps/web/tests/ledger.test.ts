@@ -1,3 +1,4 @@
+import { compareBackup } from "../src/features/ledger/backup-comparison.ts";
 import { upcomingPayments } from "../src/features/ledger/upcoming-payments.ts";
 import {
   addCardPayments,
@@ -2227,4 +2228,62 @@ test("upcoming funding compares each source separately without assuming investme
   assert.equal(result.overdue.length, 1);
   assert.throws(() => upcomingPayments(data, "not-a-date"));
   assert.equal(upcomingPayments(data, "2099-12-31").end, "2099-12-31");
+});
+
+test("backup comparison detects replacements even with equal record counts", () => {
+  const current = fixture();
+  current.entries = [
+    entry({ id: "same", amount: -1000 }),
+    entry({ id: "removed", amount: -2000 }),
+  ];
+  const incoming = structuredClone(current);
+  incoming.entries = [
+    entry({ id: "same", amount: -3000 }),
+    entry({ id: "added", amount: -2000 }),
+  ];
+  const before = structuredClone(current);
+  const report = compareBackup(current, incoming);
+  assert.deepEqual(
+    report.rows.find((r) => r.key === "entries"),
+    {
+      key: "entries",
+      label: "거래",
+      current: 2,
+      incoming: 2,
+      added: 1,
+      removed: 1,
+      changed: 1,
+    },
+  );
+  assert.equal(report.identical, false);
+  assert.deepEqual(current, before);
+  assert.equal(
+    compareBackup(current, structuredClone(current)).identical,
+    true,
+  );
+});
+
+test("backup comparison ignores key and record ordering but detects plan deletion and historical month changes", () => {
+  const current = cardBudgetFixture();
+  captureMonthlyPlan(current, "2026-02-01");
+  const incoming = structuredClone(current);
+  incoming.accounts.reverse();
+  incoming.entries = incoming.entries
+    .reverse()
+    .map(
+      (e) =>
+        Object.fromEntries(Object.entries(e).reverse()) as unknown as Entry,
+    );
+  assert.equal(compareBackup(current, incoming).identical, true);
+  incoming.monthlyPlan = null;
+  incoming.planHistory[0]!.plan.netIncome += 1;
+  const report = compareBackup(current, incoming);
+  assert.equal(report.planChanged, true);
+  assert.equal(report.rows.find((r) => r.key === "planHistory")!.changed, 1);
+  incoming.planHistory = [];
+  assert.equal(
+    compareBackup(current, incoming).rows.find((r) => r.key === "planHistory")!
+      .removed,
+    1,
+  );
 });

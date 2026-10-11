@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { compareBackup } from "./backup-comparison";
+import { useEffect, useMemo, useState } from "react";
 import { decryptBackup, encryptBackup } from "./backup";
 import { today, type Ledger, type LedgerSnapshot } from "./model";
 import { restoreLedger } from "./store";
@@ -23,6 +24,14 @@ export function BackupPanel({ snapshot, busy, run }: Props) {
   } | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [confirmed, setConfirmed] = useState(false);
+  const comparison = useMemo(
+    () => (restore ? compareBackup(snapshot.data, restore.data) : null),
+    [snapshot.data, restore],
+  );
+  const stale = restore !== null && restore.revision !== snapshot.revision;
+  useEffect(() => {
+    setConfirmed(false);
+  }, [snapshot.revision]);
   async function exportData() {
     setWorking(true);
     setError("");
@@ -74,9 +83,10 @@ export function BackupPanel({ snapshot, busy, run }: Props) {
         <fieldset disabled={busy || working}>
           <h3>암호화 백업</h3>
           <p className="ledger-note">
-            계좌·거래·목표·월급 배분 계획·가져오기 이력을 포함합니다. 이전 월급
-            계산기의 계획 이력은 해당 계산기에서 별도로 내보낼 수 있어요. 이
-            암호는 저장하지 않으며 잊으면 복구할 수 없습니다.
+            계좌·거래·목표·월급 배분·월별 계획 이력·납부 일정·만기 계획·가져오기
+            이력을 포함합니다. 이전 월급 계산기의 계획 이력은 해당 계산기에서
+            별도로 내보낼 수 있어요. 이 암호는 저장하지 않으며 잊으면 복구할 수
+            없습니다.
           </p>
           <div className="ledger-fields">
             <label>
@@ -150,9 +160,64 @@ export function BackupPanel({ snapshot, busy, run }: Props) {
                   ? "포함"
                   : "없음 (현재 월급 계획도 삭제됩니다)"}
               </p>
+              {comparison && (
+                <div>
+                  <h4>현재 데이터와 비교</h4>
+                  <p className="ledger-note">
+                    합치기가 아니라 전체 교체입니다. 제외 항목은 현재 기기에서
+                    사라지고, 변경 항목은 백업 내용으로 덮어씁니다. 식별자가
+                    다른 같은 거래도 별개 항목으로 표시합니다.
+                  </p>
+                  {comparison.identical ? (
+                    <p>현재 가계부와 백업의 내용이 같습니다.</p>
+                  ) : (
+                    <>
+                      <div className="ledger-stack">
+                        {comparison.rows.map((row) => (
+                          <div className="ledger-funding-goal" key={row.key}>
+                            <strong>
+                              {row.label}: 현재 {row.current} → 백업{" "}
+                              {row.incoming}
+                            </strong>
+                            <p>
+                              추가 {row.added} · 변경 {row.changed} · 제외{" "}
+                              {row.removed}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                      <p>
+                        월급 배분 계획:{" "}
+                        {comparison.planChanged ? "백업 내용으로 변경" : "동일"}
+                      </p>
+                    </>
+                  )}
+                  <p className="ledger-note">
+                    현재 데이터를 남기려면 위 암호와 확인 칸에 새 백업 암호를
+                    입력한 뒤 아래 버튼으로 저장하세요. 다운로드한 파일을 확인한
+                    후 복원할 수 있습니다.
+                  </p>
+                  <button
+                    className="ledger-btn"
+                    disabled={
+                      passphrase.length < 8 || passphrase !== confirmPhrase
+                    }
+                    onClick={() => void exportData()}
+                  >
+                    현재 데이터 먼저 백업
+                  </button>
+                </div>
+              )}
+              {stale && (
+                <p className="ledger-error" role="alert">
+                  미리보기 이후 현재 데이터가 바뀌었습니다. 백업 암호를 다시
+                  입력하고 복원 내용 확인을 눌러 비교를 갱신해 주세요.
+                </p>
+              )}
               <label className="ledger-checkbox">
                 <input
                   type="checkbox"
+                  disabled={stale}
                   checked={confirmed}
                   onChange={(e) => setConfirmed(e.target.checked)}
                 />
@@ -161,7 +226,7 @@ export function BackupPanel({ snapshot, busy, run }: Props) {
               <div className="ledger-actions">
                 <button
                   className="ledger-btn ledger-primary"
-                  disabled={!confirmed}
+                  disabled={!confirmed || stale}
                   onClick={async () => {
                     if (
                       await run(
