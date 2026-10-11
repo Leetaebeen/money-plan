@@ -1,3 +1,4 @@
+import { possibleDuplicateIds } from "../src/features/ledger/transaction-search.ts";
 import { wealthHistory } from "../src/features/ledger/wealth-history.ts";
 import {
   searchTransactions,
@@ -2499,4 +2500,38 @@ test("transaction pages stay populated after deleting the final row or undoing a
   assert.equal(transactionPage(entries, -1).page, 0);
   assert.equal(transactionPage(entries, Number.NaN).page, 0);
   assert.equal(entries.length, 61);
+});
+
+test("duplicate candidates normalize descriptions while separating accounts, dates and kinds", () => {
+  const entries = [
+    entry({ id: "one", description: "ＣＡＦＥ  커피" }),
+    entry({ id: "two", description: " cafe 커피 ", category: "다른 분류" }),
+    entry({ id: "other-account", accountId: "card", description: "cafe 커피" }),
+    entry({ id: "other-date", date: "2026-01-16", description: "cafe 커피" }),
+    entry({ id: "other-amount", amount: -999, description: "cafe 커피" }),
+    entry({
+      id: "refund",
+      kind: "REFUND",
+      amount: 1000,
+      description: "cafe 커피",
+    }),
+  ];
+  const before = structuredClone(entries);
+  assert.deepEqual([...possibleDuplicateIds(entries)], ["one", "two"]);
+  assert.equal(possibleDuplicateIds(entries.slice(1)).size, 0);
+  assert.deepEqual(entries, before);
+  assert.equal(
+    possibleDuplicateIds([
+      entry({ id: "a", kind: "TRANSFER" }),
+      entry({ id: "b", kind: "TRANSFER" }),
+    ]).size,
+    0,
+  );
+  assert.equal(
+    possibleDuplicateIds([
+      entry({ id: "a", kind: "ADJUSTMENT" }),
+      entry({ id: "b", kind: "ADJUSTMENT" }),
+    ]).size,
+    0,
+  );
 });

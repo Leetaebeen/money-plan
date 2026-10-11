@@ -1,3 +1,4 @@
+import { possibleDuplicateIds } from "./transaction-search";
 import { searchTransactions, transactionPage } from "./transaction-search";
 import { SpendingSummary } from "./SpendingSummary";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -35,6 +36,11 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
   const [category, setCategory] = useState("미분류");
   const [error, setError] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
+  const [duplicatesOnly, setDuplicatesOnly] = useState(false);
+  const duplicateIds = useMemo(
+    () => possibleDuplicateIds(data.entries),
+    [data.entries],
+  );
   const [query, setQuery] = useState("");
   const [kindFilter, setKindFilter] = useState<EntryKind | "">("");
   const [filter, setFilter] = useState("");
@@ -135,13 +141,26 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
   }
   const baseVisible = useMemo(
     () =>
-      searchTransactions(data.entries, {
-        month,
-        accountId: filter,
-        kind: kindFilter,
-        query,
-      }),
-    [data.entries, filter, month, kindFilter, query],
+      searchTransactions(
+        duplicatesOnly
+          ? data.entries.filter((e) => duplicateIds.has(e.id))
+          : data.entries,
+        {
+          month,
+          accountId: filter,
+          kind: kindFilter,
+          query,
+        },
+      ),
+    [
+      data.entries,
+      filter,
+      month,
+      kindFilter,
+      query,
+      duplicatesOnly,
+      duplicateIds,
+    ],
   );
   const visible = categoryFilter
     ? baseVisible.filter(
@@ -427,6 +446,7 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
           onClick={() => {
             setQuery("");
             setKindFilter("");
+            setDuplicatesOnly(false);
             setFilter("");
             setCategoryFilter("");
             setPage(0);
@@ -435,6 +455,26 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
           필터 초기화 (조회 월 유지)
         </button>
       </p>
+      <label className="ledger-checkbox">
+        <input
+          type="checkbox"
+          checked={duplicatesOnly}
+          onChange={(e) => {
+            setDuplicatesOnly(e.target.checked);
+            setCategoryFilter("");
+            setPage(0);
+          }}
+        />
+        중복 의심 거래만 보기 (전체 기록 {duplicateIds.size}건)
+      </label>
+      {(duplicatesOnly || duplicateIds.size > 0) && (
+        <p className="ledger-note">
+          같은 계좌·날짜·종류·금액·설명의 수입·지출·환불을 중복 의심으로
+          표시합니다. 실제 반복 결제일 수 있으니 내역을 확인한 후
+          수정·삭제하세요. 이체와 잔액 조정은 검사하지 않습니다. 합계는 현재
+          조회 조건에 맞는 거래만 포함합니다.
+        </p>
+      )}
       <SpendingSummary
         entries={baseVisible}
         selected={categoryFilter}
@@ -465,6 +505,7 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
                 <h3>{entry.description}</h3>
                 <span className="ledger-tag">
                   {kinds[entry.kind]} · {entry.category}
+                  {duplicateIds.has(entry.id) && " · 중복 의심"}
                   {data.accounts.find((a) => a.id === entry.accountId)?.role ===
                     "CREDIT_CARD" &&
                     (entry.kind === "EXPENSE" || entry.kind === "REFUND") &&

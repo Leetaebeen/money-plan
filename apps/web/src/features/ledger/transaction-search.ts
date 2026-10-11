@@ -38,3 +38,31 @@ export function transactionPage(entries: Entry[], requested: number) {
     to: Math.min(start + 30, entries.length),
   };
 }
+
+export function possibleDuplicateIds(entries: Entry[]): Set<string> {
+  const groups = new Map<string, string[]>();
+  for (const entry of entries) {
+    if (
+      entry.kind !== "EXPENSE" &&
+      entry.kind !== "INCOME" &&
+      entry.kind !== "REFUND"
+    )
+      continue;
+    const description = entry.description
+      .normalize("NFKC")
+      .trim()
+      .replace(/\s+/g, " ")
+      .toLowerCase();
+    const key = JSON.stringify([
+      entry.accountId,
+      entry.date,
+      entry.kind,
+      entry.amount,
+      description,
+    ]);
+    const ids = groups.get(key) ?? [];
+    ids.push(entry.id);
+    groups.set(key, ids);
+  }
+  return new Set([...groups.values()].filter((ids) => ids.length > 1).flat());
+}
