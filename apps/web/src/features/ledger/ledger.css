@@ -616,7 +616,8 @@ body:has(.ledger) {
   color: var(--lg-green);
 }
 .ledger-filters {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
   gap: 15px;
   margin: 24px 0 16px;
 }

@@ -1,3 +1,4 @@
+import { searchTransactions } from "../src/features/ledger/transaction-search.ts";
 import { spendingSummary } from "../src/features/ledger/spending-summary.ts";
 import { compareBackup } from "../src/features/ledger/backup-comparison.ts";
 import { upcomingPayments } from "../src/features/ledger/upcoming-payments.ts";
@@ -2328,4 +2329,65 @@ test("refund-only categories keep negative consumption and empty summaries remai
   assert.equal(report.rows[1]!.net, -5000);
   assert.equal(spendingSummary([], "2026-01-31").net, 0);
   assert.throws(() => spendingSummary([], "invalid"));
+});
+
+test("transaction search combines keywords, account, month and kind without modifying records", () => {
+  const entries = [
+    entry({
+      id: "a",
+      description: "ＣＡＦＥ 커피",
+      category: "식비",
+      amount: -5000,
+    }),
+    entry({
+      id: "b",
+      description: "Cafe 환불",
+      category: "식비",
+      kind: "REFUND",
+      amount: 1000,
+    }),
+    entry({
+      id: "c",
+      accountId: "card",
+      description: "Cafe 커피",
+      category: "식비",
+    }),
+    entry({
+      id: "d",
+      date: "2026-02-01",
+      description: "Cafe 커피",
+      category: "식비",
+    }),
+  ];
+  const before = structuredClone(entries);
+  const filters = {
+    month: "2026-01",
+    accountId: "cash",
+    kind: "" as const,
+    query: " CAFE   식비 ",
+  };
+  assert.deepEqual(
+    searchTransactions(entries, filters).map((e) => e.id),
+    ["a", "b"],
+  );
+  const expenses = searchTransactions(entries, { ...filters, kind: "EXPENSE" });
+  assert.deepEqual(
+    expenses.map((e) => e.id),
+    ["a"],
+  );
+  assert.equal(spendingSummary(expenses, "2026-01-31").net, 5000);
+  assert.equal(
+    searchTransactions(entries, { ...filters, query: "Cafe 교통" }).length,
+    0,
+  );
+  assert.equal(
+    searchTransactions(entries, {
+      month: "",
+      accountId: "",
+      kind: "",
+      query: " ",
+    }).length,
+    4,
+  );
+  assert.deepEqual(entries, before);
 });

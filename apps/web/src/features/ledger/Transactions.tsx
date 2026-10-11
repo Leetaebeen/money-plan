@@ -1,3 +1,4 @@
+import { searchTransactions } from "./transaction-search";
 import { SpendingSummary } from "./SpendingSummary";
 import { useMemo, useState } from "react";
 import {
@@ -34,6 +35,8 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
   const [category, setCategory] = useState("미분류");
   const [error, setError] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
+  const [query, setQuery] = useState("");
+  const [kindFilter, setKindFilter] = useState<EntryKind | "">("");
   const [filter, setFilter] = useState("");
   const [month, setMonth] = useState(today().slice(0, 7));
   const [page, setPage] = useState(0);
@@ -127,16 +130,13 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
   }
   const baseVisible = useMemo(
     () =>
-      data.entries
-        .filter(
-          (e) =>
-            (!filter || e.accountId === filter) &&
-            (!month || e.date.startsWith(month)),
-        )
-        .sort(
-          (a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id),
-        ),
-    [data.entries, filter, month],
+      searchTransactions(data.entries, {
+        month,
+        accountId: filter,
+        kind: kindFilter,
+        query,
+      }),
+    [data.entries, filter, month, kindFilter, query],
   );
   const visible = categoryFilter
     ? baseVisible.filter(
@@ -347,6 +347,39 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
       )}
       <div className="ledger-filters">
         <label>
+          거래 검색
+          <input
+            type="search"
+            maxLength={100}
+            value={query}
+            placeholder="가맹점·메모·카테고리"
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setCategoryFilter("");
+              setPage(0);
+            }}
+          />
+        </label>
+        <label>
+          거래 종류
+          <select
+            value={kindFilter}
+            onChange={(e) => {
+              setKindFilter(e.target.value as EntryKind | "");
+              setCategoryFilter("");
+              setPage(0);
+            }}
+          >
+            <option value="">모든 종류</option>
+            {Object.entries(kinds).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label>
           조회 월
           <input
             type="month"
@@ -377,6 +410,22 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
           </select>
         </label>
       </div>
+      <p className="ledger-note" role="status">
+        검색·필터 결과 {visible.length}건 · 공백으로 나눈 검색어를 모두 포함하는
+        거래를 찾습니다.{" "}
+        <button
+          className="ledger-text-btn"
+          onClick={() => {
+            setQuery("");
+            setKindFilter("");
+            setFilter("");
+            setCategoryFilter("");
+            setPage(0);
+          }}
+        >
+          필터 초기화 (조회 월 유지)
+        </button>
+      </p>
       <SpendingSummary
         entries={baseVisible}
         selected={categoryFilter}
@@ -387,8 +436,8 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
       />
       {!visible.length ? (
         <Empty>
-          선택한 조회 조건에 거래가 없어요. 내역 파일을 가져오거나 직접 입력해
-          보세요.
+          선택한 조회 조건에 거래가 없어요. 검색어·조회 월·필터를 확인하거나
+          거래를 입력해 주세요.
         </Empty>
       ) : (
         <div className="ledger-panel ledger-entry-list">
