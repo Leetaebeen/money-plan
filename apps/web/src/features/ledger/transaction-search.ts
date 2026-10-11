@@ -22,3 +22,19 @@ export function searchTransactions(
     })
     .sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id));
 }
+
+export function transactionPage(entries: Entry[], requested: number) {
+  const pages = Math.max(1, Math.ceil(entries.length / 30));
+  const page = Math.max(
+    0,
+    Math.min(pages - 1, Number.isFinite(requested) ? Math.floor(requested) : 0),
+  );
+  const start = page * 30;
+  return {
+    page,
+    pages,
+    entries: entries.slice(start, start + 30),
+    from: entries.length ? start + 1 : 0,
+    to: Math.min(start + 30, entries.length),
+  };
+}

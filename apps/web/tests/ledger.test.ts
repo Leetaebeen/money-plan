@@ -1,5 +1,8 @@
 import { wealthHistory } from "../src/features/ledger/wealth-history.ts";
-import { searchTransactions } from "../src/features/ledger/transaction-search.ts";
+import {
+  searchTransactions,
+  transactionPage,
+} from "../src/features/ledger/transaction-search.ts";
 import { spendingSummary } from "../src/features/ledger/spending-summary.ts";
 import { compareBackup } from "../src/features/ledger/backup-comparison.ts";
 import { upcomingPayments } from "../src/features/ledger/upcoming-payments.ts";
@@ -2470,4 +2473,30 @@ test("wealth history includes debt and withholds incomplete or empty account tot
   assert.equal(wealthHistory(data, "2026-02-28").at(-1)!.net, null);
   assert.equal(wealthHistory(data, "2000-01-01").length, 1);
   assert.throws(() => wealthHistory(data, "2026-02-30"));
+});
+
+test("transaction pages stay populated after deleting the final row or undoing an import", () => {
+  const entries = Array.from({ length: 61 }, (_, i) =>
+    entry({ id: `row-${i}` }),
+  );
+  assert.equal(transactionPage(entries, 2).entries[0]!.id, "row-60");
+  const removedLast = transactionPage(entries.slice(0, 60), 2);
+  assert.equal(removedLast.page, 1);
+  assert.equal(removedLast.entries.length, 30);
+  assert.equal(removedLast.from, 31);
+  assert.equal(removedLast.to, 60);
+  const afterUndo = transactionPage(entries.slice(0, 5), 2);
+  assert.equal(afterUndo.page, 0);
+  assert.equal(afterUndo.entries.length, 5);
+  assert.equal(afterUndo.pages, 1);
+  assert.deepEqual(transactionPage([], 2), {
+    page: 0,
+    pages: 1,
+    entries: [],
+    from: 0,
+    to: 0,
+  });
+  assert.equal(transactionPage(entries, -1).page, 0);
+  assert.equal(transactionPage(entries, Number.NaN).page, 0);
+  assert.equal(entries.length, 61);
 });

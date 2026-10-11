@@ -1,6 +1,6 @@
-import { searchTransactions } from "./transaction-search";
+import { searchTransactions, transactionPage } from "./transaction-search";
 import { SpendingSummary } from "./SpendingSummary";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   kinds,
   money,
@@ -40,6 +40,11 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
   const [filter, setFilter] = useState("");
   const [month, setMonth] = useState(today().slice(0, 7));
   const [page, setPage] = useState(0);
+  const listRef = useRef<HTMLDivElement>(null);
+  function goToPage(next: number) {
+    setPage(next);
+    listRef.current?.focus();
+  }
   function edit(entry?: Entry) {
     setEditing(entry ?? "new");
     setAccount(entry?.accountId ?? data.accounts[0]?.id ?? "");
@@ -146,6 +151,10 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
           (e.category.trim() || "미분류") === categoryFilter,
       )
     : baseVisible;
+  const pageView = transactionPage(visible, page);
+  useEffect(() => {
+    if (page !== pageView.page) setPage(pageView.page);
+  }, [page, pageView.page]);
   const imported =
     typeof editing === "object" && editing !== null && editing.batchId !== null;
   return (
@@ -440,8 +449,13 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
           거래를 입력해 주세요.
         </Empty>
       ) : (
-        <div className="ledger-panel ledger-entry-list">
-          {visible.slice(page * 30, page * 30 + 30).map((entry) => (
+        <div
+          ref={listRef}
+          tabIndex={-1}
+          aria-label="검색된 거래 목록"
+          className="ledger-panel ledger-entry-list"
+        >
+          {pageView.entries.map((entry) => (
             <article className="ledger-entry" key={entry.id}>
               <div>
                 <span className="ledger-note">
@@ -513,26 +527,45 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
           ))}
         </div>
       )}
-      {visible.length > 30 && (
-        <div className="ledger-actions">
+      {!!visible.length && (
+        <p className="ledger-note" role="status">
+          {visible.length}건 중 {pageView.from}~{pageView.to}건 표시
+        </p>
+      )}
+      {pageView.pages > 1 && (
+        <nav className="ledger-actions" aria-label="거래 목록 페이지">
           <button
             className="ledger-btn"
-            disabled={!page}
-            onClick={() => setPage((p) => p - 1)}
+            disabled={pageView.page === 0}
+            onClick={() => goToPage(0)}
+          >
+            처음
+          </button>
+          <button
+            className="ledger-btn"
+            disabled={pageView.page === 0}
+            onClick={() => goToPage(pageView.page - 1)}
           >
             이전
           </button>
           <span>
-            {page + 1} / {Math.ceil(visible.length / 30)}
+            {pageView.page + 1} / {pageView.pages}
           </span>
           <button
             className="ledger-btn"
-            disabled={(page + 1) * 30 >= visible.length}
-            onClick={() => setPage((p) => p + 1)}
+            disabled={pageView.page === pageView.pages - 1}
+            onClick={() => goToPage(pageView.page + 1)}
           >
             다음
           </button>
-        </div>
+          <button
+            className="ledger-btn"
+            disabled={pageView.page === pageView.pages - 1}
+            onClick={() => goToPage(pageView.pages - 1)}
+          >
+            마지막
+          </button>
+        </nav>
       )}
       {!!data.batches.length && (
         <details className="ledger-panel">
