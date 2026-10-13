@@ -1,3 +1,4 @@
+import { changeTransactionCategories } from "./transaction-edit";
 import { possibleDuplicateIds } from "./transaction-search";
 import { searchTransactions, transactionPage } from "./transaction-search";
 import { SpendingSummary } from "./SpendingSummary";
@@ -46,6 +47,13 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
   const [filter, setFilter] = useState("");
   const [month, setMonth] = useState(today().slice(0, 7));
   const [page, setPage] = useState(0);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkCategory, setBulkCategory] = useState("");
+  const [bulkError, setBulkError] = useState("");
+  useEffect(() => {
+    setSelectedIds([]);
+    setBulkError("");
+  }, [page, query, filter, month, kindFilter, duplicatesOnly, categoryFilter]);
   const listRef = useRef<HTMLDivElement>(null);
   function goToPage(next: number) {
     setPage(next);
@@ -171,6 +179,12 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
       )
     : baseVisible;
   const pageView = transactionPage(visible, page);
+  const selectable = pageView.entries.filter(
+    (entry) => entry.kind === "EXPENSE" || entry.kind === "REFUND",
+  );
+  const activeIds = selectedIds.filter((id) =>
+    selectable.some((entry) => entry.id === id),
+  );
   useEffect(() => {
     if (page !== pageView.page) setPage(pageView.page);
   }, [page, pageView.page]);
@@ -483,6 +497,82 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
           setPage(0);
         }}
       />
+      {!!selectable.length && (
+        <form
+          className="ledger-panel ledger-form"
+          onSubmit={async (event) => {
+            event.preventDefault();
+            setBulkError("");
+            try {
+              if (
+                await change(
+                  (next) =>
+                    changeTransactionCategories(next, activeIds, bulkCategory),
+                  `${activeIds.length}건의 카테고리를 변경했어요.`,
+                )
+              ) {
+                setSelectedIds([]);
+                setBulkCategory("");
+              }
+            } catch (e) {
+              setBulkError(
+                e instanceof Error
+                  ? e.message
+                  : "선택과 카테고리를 확인해 주세요.",
+              );
+            }
+          }}
+        >
+          <fieldset disabled={busy}>
+            <h3>선택한 거래 분류</h3>
+            <p className="ledger-note">
+              현재 페이지의 지출·환불만 선택할 수 있습니다. 검색·필터·페이지를
+              바꾸면 선택이 해제됩니다. 금액·계좌·카드 예산 구분은 바꾸지
+              않습니다.
+            </p>
+            <div className="ledger-actions">
+              <button
+                type="button"
+                className="ledger-text-btn"
+                onClick={() =>
+                  setSelectedIds(selectable.map((entry) => entry.id))
+                }
+              >
+                이 페이지 지출·환불 선택
+              </button>
+              <button
+                type="button"
+                className="ledger-text-btn"
+                onClick={() => setSelectedIds([])}
+              >
+                선택 해제
+              </button>
+              <span>{activeIds.length}건 선택</span>
+            </div>
+            <label>
+              변경할 카테고리
+              <input
+                required
+                maxLength={60}
+                value={bulkCategory}
+                onChange={(e) => setBulkCategory(e.target.value)}
+                placeholder="예: 식비"
+              />
+            </label>
+            <button
+              className="ledger-btn ledger-primary"
+              disabled={!activeIds.length || !bulkCategory.trim()}
+            >
+              선택한 {activeIds.length}건 분류 변경
+            </button>
+            {bulkError && (
+              <p className="ledger-error" role="alert">
+                {bulkError}
+              </p>
+            )}
+          </fieldset>
+        </form>
+      )}
       {!visible.length ? (
         <Empty>
           선택한 조회 조건에 거래가 없어요. 검색어·조회 월·필터를 확인하거나
@@ -502,6 +592,23 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
                   {entry.date} ·{" "}
                   {data.accounts.find((a) => a.id === entry.accountId)?.name}
                 </span>
+                {(entry.kind === "EXPENSE" || entry.kind === "REFUND") && (
+                  <label className="ledger-checkbox">
+                    <input
+                      type="checkbox"
+                      disabled={busy}
+                      checked={activeIds.includes(entry.id)}
+                      onChange={(e) =>
+                        setSelectedIds((ids) =>
+                          e.target.checked
+                            ? [...ids.filter((id) => id !== entry.id), entry.id]
+                            : ids.filter((id) => id !== entry.id),
+                        )
+                      }
+                    />
+                    {entry.description} 선택
+                  </label>
+                )}
                 <h3>{entry.description}</h3>
                 <span className="ledger-tag">
                   {kinds[entry.kind]} · {entry.category}

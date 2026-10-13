@@ -1,3 +1,4 @@
+import { changeTransactionCategories } from "../src/features/ledger/transaction-edit.ts";
 import { possibleDuplicateIds } from "../src/features/ledger/transaction-search.ts";
 import { wealthHistory } from "../src/features/ledger/wealth-history.ts";
 import {
@@ -2534,4 +2535,33 @@ test("duplicate candidates normalize descriptions while separating accounts, dat
     ]).size,
     0,
   );
+});
+
+test("bulk categorization changes only selected expense and refund categories", () => {
+  const data = cardBudgetFixture();
+  const before = structuredClone(data.entries);
+  changeTransactionCategories(data, ["living", "refund"], " 식비 ");
+  assert.equal(data.entries[0]!.category, "식비");
+  assert.equal(data.entries[2]!.category, "식비");
+  assert.deepEqual(
+    data.entries.map(({ category, ...e }) => e),
+    before.map(({ category, ...e }) => e),
+  );
+  assert.equal(data.entries[1]!.category, before[1]!.category);
+  validateLedger(data);
+  const updated = structuredClone(data);
+  for (const ids of [
+    [],
+    ["living", "missing"],
+    ["living", "pay"],
+    ["living", "living"],
+  ]) {
+    assert.throws(() => changeTransactionCategories(data, ids, "교통"));
+    assert.deepEqual(data, updated);
+  }
+  assert.throws(() => changeTransactionCategories(data, ["living"], " "));
+  assert.throws(() =>
+    changeTransactionCategories(data, ["living"], "가".repeat(61)),
+  );
+  assert.deepEqual(data, updated);
 });
