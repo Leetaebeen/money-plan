@@ -1,4 +1,7 @@
-import { changeTransactionCategories } from "./transaction-edit";
+import {
+  changeCardBudgets,
+  changeTransactionCategories,
+} from "./transaction-edit";
 import { possibleDuplicateIds } from "./transaction-search";
 import { searchTransactions, transactionPage } from "./transaction-search";
 import { SpendingSummary } from "./SpendingSummary";
@@ -49,6 +52,9 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
   const [page, setPage] = useState(0);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkCategory, setBulkCategory] = useState("");
+  const [bulkBudget, setBulkBudget] = useState<"FIXED" | "LIVING" | "">(
+    "LIVING",
+  );
   const [bulkError, setBulkError] = useState("");
   useEffect(() => {
     setSelectedIds([]);
@@ -185,6 +191,14 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
   const activeIds = selectedIds.filter((id) =>
     selectable.some((entry) => entry.id === id),
   );
+  const cardsOnly =
+    activeIds.length > 0 &&
+    activeIds.every((id) => {
+      const entry = selectable.find((item) => item.id === id);
+      return data.accounts.some(
+        (a) => a.id === entry?.accountId && a.role === "CREDIT_CARD",
+      );
+    });
   useEffect(() => {
     if (page !== pageView.page) setPage(pageView.page);
   }, [page, pageView.page]);
@@ -527,8 +541,8 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
             <h3>선택한 거래 분류</h3>
             <p className="ledger-note">
               현재 페이지의 지출·환불만 선택할 수 있습니다. 검색·필터·페이지를
-              바꾸면 선택이 해제됩니다. 금액·계좌·카드 예산 구분은 바꾸지
-              않습니다.
+              바꾸면 선택이 해제됩니다. 카테고리 변경과 카드 예산 변경은 각각
+              적용하며 금액·계좌는 바꾸지 않습니다.
             </p>
             <div className="ledger-actions">
               <button
@@ -565,6 +579,54 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
             >
               선택한 {activeIds.length}건 분류 변경
             </button>
+            {data.accounts.some((a) => a.role === "CREDIT_CARD") && (
+              <>
+                <label>
+                  변경할 카드 예산
+                  <select
+                    value={bulkBudget}
+                    onChange={(event) =>
+                      setBulkBudget(event.target.value as typeof bulkBudget)
+                    }
+                  >
+                    <option value="LIVING">생활비</option>
+                    <option value="FIXED">고정비</option>
+                    <option value="">미분류로 되돌리기</option>
+                  </select>
+                </label>
+                <p className="ledger-note">
+                  카드 지출·환불만 선택하면 적용할 수 있습니다. 환불은 원래
+                  사용과 같은 예산으로 분류하세요. 미분류 거래가 있으면 급여
+                  주기 예산 계산이 보류될 수 있습니다.
+                </p>
+                <button
+                  type="button"
+                  className="ledger-btn"
+                  disabled={!cardsOnly}
+                  onClick={async () => {
+                    setBulkError("");
+                    try {
+                      if (
+                        await change(
+                          (next) =>
+                            changeCardBudgets(next, activeIds, bulkBudget),
+                          `${activeIds.length}건의 카드 예산을 변경했어요.`,
+                        )
+                      )
+                        setSelectedIds([]);
+                    } catch (e) {
+                      setBulkError(
+                        e instanceof Error
+                          ? e.message
+                          : "카드 거래 선택을 확인해 주세요.",
+                      );
+                    }
+                  }}
+                >
+                  선택한 {activeIds.length}건 카드 예산 변경
+                </button>
+              </>
+            )}
             {bulkError && (
               <p className="ledger-error" role="alert">
                 {bulkError}

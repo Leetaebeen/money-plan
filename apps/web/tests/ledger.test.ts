@@ -1,4 +1,7 @@
-import { changeTransactionCategories } from "../src/features/ledger/transaction-edit.ts";
+import {
+  changeCardBudgets,
+  changeTransactionCategories,
+} from "../src/features/ledger/transaction-edit.ts";
 import { possibleDuplicateIds } from "../src/features/ledger/transaction-search.ts";
 import { wealthHistory } from "../src/features/ledger/wealth-history.ts";
 import {
@@ -2564,4 +2567,62 @@ test("bulk categorization changes only selected expense and refund categories", 
     changeTransactionCategories(data, ["living"], "가".repeat(61)),
   );
   assert.deepEqual(data, updated);
+});
+
+test("bulk card budgets move purchases and refunds together without changing balances", () => {
+  const data = cardBudgetFixture();
+  const before = structuredClone(data.entries);
+  changeCardBudgets(data, ["living", "refund"], "FIXED");
+  validateLedger(data);
+  const result = cycleBudget(data, "2026-02-01")!;
+  assert.equal(
+    result.rows.find((r) => r.account.id === "cash")!.remaining,
+    470000,
+  );
+  assert.equal(
+    result.rows.find((r) => r.account.id === "save")!.remaining,
+    170000,
+  );
+  assert.deepEqual(
+    data.entries.map(({ cardBudget, ...e }) => e),
+    before.map(({ cardBudget, ...e }) => e),
+  );
+  assert.equal(data.entries[1]!.cardBudget, "FIXED");
+  changeCardBudgets(data, ["living", "refund"], "");
+  assert.equal(cycleBudget(data, "2026-02-01")!.unassignedCards, 2);
+  assert.ok(!("cardBudget" in data.entries[0]!));
+  changeCardBudgets(data, ["living", "refund"], "LIVING");
+  assert.deepEqual(data.entries, before);
+});
+
+test("bulk card budget rejects stale, mixed, duplicate and oversized selections atomically", () => {
+  const data = cardBudgetFixture();
+  const before = structuredClone(data);
+  for (const ids of [
+    [],
+    ["living", "bank"],
+    ["living", "missing"],
+    ["living", "settle"],
+    ["living", "living"],
+  ]) {
+    assert.throws(() => changeCardBudgets(data, ids, "FIXED"));
+    assert.deepEqual(data, before);
+  }
+  data.entries = Array.from({ length: 31 }, (_, i) => ({
+    ...before.entries[0]!,
+    id: `card-${i}`,
+  }));
+  const large = structuredClone(data);
+  assert.throws(() =>
+    changeCardBudgets(
+      data,
+      data.entries.map((e) => e.id),
+      "FIXED",
+    ),
+  );
+  assert.deepEqual(data, large);
+  data.accounts.find((a) => a.id === "card")!.role = "LOAN";
+  const changedRole = structuredClone(data);
+  assert.throws(() => changeCardBudgets(data, ["card-0"], "FIXED"));
+  assert.deepEqual(data, changedRole);
 });
