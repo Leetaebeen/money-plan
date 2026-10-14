@@ -19,6 +19,7 @@ export function SpendingSummary({
   const asOf = today();
   const report = useMemo(() => spendingSummary(entries, asOf), [entries, asOf]);
   const [limit, setLimit] = useState(8);
+  const [changeLimit, setChangeLimit] = useState(6);
   return (
     <section className="ledger-panel" aria-label="카테고리별 소비 요약">
       <h3>조회 조건의 소비</h3>
@@ -65,6 +66,56 @@ export function SpendingSummary({
             적용한 환불 차감 소비입니다. 기록이 없는 기간의 실제 소비를 0원으로
             확정하지 않으며, 계좌 기록 시작일과 누락 여부를 확인하세요.
           </p>
+          {comparison.difference !== null && (
+            <details>
+              <summary>
+                소비 변화가 큰 카테고리 ({comparison.changes.length}개)
+              </summary>
+              <p className="ledger-note">
+                환불 차감 소비의 변화 금액이 큰 순서입니다. 한쪽 기간에 해당
+                카테고리 기록이 없으면 기록된 금액을 0원으로 비교합니다.
+                환불이나 카테고리 수정도 증감에 영향을 줍니다.
+              </p>
+              {!comparison.changes.length && (
+                <p>카테고리별 기록 금액에 변화가 없습니다.</p>
+              )}
+              {comparison.changes.slice(0, changeLimit).map((row) => (
+                <article className="ledger-funding-goal" key={row.category}>
+                  <h4>
+                    {row.category} · {won(Math.abs(row.difference))}{" "}
+                    {row.difference > 0 ? "증가" : "감소"}
+                  </h4>
+                  <p className="ledger-note">
+                    전월 {won(row.previous)} ({row.previousCount}건) → 조회 월{" "}
+                    {won(row.current)} ({row.currentCount}건)
+                  </p>
+                  {row.currentCount > 0 ? (
+                    <button
+                      className="ledger-text-btn"
+                      aria-pressed={selected === row.category}
+                      onClick={() =>
+                        onSelect(selected === row.category ? "" : row.category)
+                      }
+                    >
+                      {row.category} 조회 월 내역 보기
+                    </button>
+                  ) : (
+                    <p className="ledger-note">
+                      조회 월에는 해당 카테고리 기록이 없습니다.
+                    </p>
+                  )}
+                </article>
+              ))}
+              {comparison.changes.length > changeLimit && (
+                <button
+                  className="ledger-text-btn"
+                  onClick={() => setChangeLimit(changeLimit + 6)}
+                >
+                  소비 변화 더 보기
+                </button>
+              )}
+            </details>
+          )}
         </div>
       )}
       <details>

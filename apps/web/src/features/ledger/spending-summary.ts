@@ -37,6 +37,39 @@ export function compareMonthlySpending(
     ),
     asOf,
   );
+  const currentByCategory = new Map(
+    current.rows.map((row) => [row.category, row]),
+  );
+  const previousByCategory = new Map(
+    previous.rows.map((row) => [row.category, row]),
+  );
+  const changes =
+    current.count && previous.count
+      ? [
+          ...new Set([
+            ...currentByCategory.keys(),
+            ...previousByCategory.keys(),
+          ]),
+        ]
+          .map((category) => {
+            const now = currentByCategory.get(category);
+            const before = previousByCategory.get(category);
+            return {
+              category,
+              current: now?.net ?? 0,
+              previous: before?.net ?? 0,
+              currentCount: now?.count ?? 0,
+              previousCount: before?.count ?? 0,
+              difference: (now?.net ?? 0) - (before?.net ?? 0),
+            };
+          })
+          .filter((row) => row.difference !== 0)
+          .sort(
+            (a, b) =>
+              Math.abs(b.difference) - Math.abs(a.difference) ||
+              a.category.localeCompare(b.category, "ko"),
+          )
+      : [];
   return {
     start,
     end,
@@ -44,6 +77,7 @@ export function compareMonthlySpending(
     previousEnd,
     current,
     previous,
+    changes,
     difference:
       current.count && previous.count ? current.net - previous.net : null,
   };

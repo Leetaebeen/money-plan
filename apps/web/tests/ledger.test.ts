@@ -2773,3 +2773,68 @@ test("past months compare complete months and missing records do not imply savin
     assert.equal(compareMonthlySpending(entries, month, "2026-03-14"), null);
   }
 });
+
+test("category changes reconcile net difference including new, absent and refund-only categories", () => {
+  const entries = [
+    entry({
+      id: "prior-food",
+      date: "2026-02-01",
+      category: "식비",
+      amount: -5000,
+    }),
+    entry({ id: "food", date: "2026-03-01", category: "식비", amount: -8000 }),
+    entry({
+      id: "prior-travel",
+      date: "2026-02-01",
+      category: "여행",
+      amount: -20000,
+    }),
+    entry({ id: "new", date: "2026-03-01", category: "교통", amount: -2000 }),
+    entry({
+      id: "refund",
+      date: "2026-03-01",
+      category: "환불",
+      kind: "REFUND",
+      amount: 4000,
+    }),
+    entry({
+      id: "prior-stable",
+      date: "2026-02-01",
+      category: "통신",
+      amount: -1000,
+    }),
+    entry({
+      id: "stable",
+      date: "2026-03-01",
+      category: "통신",
+      amount: -1000,
+    }),
+  ];
+  const before = structuredClone(entries);
+  const report = compareMonthlySpending(entries, "2026-03", "2026-03-14")!;
+  assert.deepEqual(
+    report.changes.map((r) => [r.category, r.difference]),
+    [
+      ["여행", -20000],
+      ["환불", -4000],
+      ["식비", 3000],
+      ["교통", 2000],
+    ],
+  );
+  assert.equal(
+    report.changes.reduce((sum, r) => sum + r.difference, 0),
+    report.difference,
+  );
+  assert.equal(report.changes[0]!.currentCount, 0);
+  assert.equal(report.changes[1]!.current, -4000);
+  assert.equal(report.changes[3]!.previousCount, 0);
+  assert.deepEqual(entries, before);
+  assert.deepEqual(
+    compareMonthlySpending(
+      entries.filter((e) => e.date.startsWith("2026-03")),
+      "2026-03",
+      "2026-03-14",
+    )!.changes,
+    [],
+  );
+});
