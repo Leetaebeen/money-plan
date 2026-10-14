@@ -1,4 +1,22 @@
-import type { Entry, EntryKind } from "./model.ts";
+import type { Entry, EntryKind, Ledger } from "./model.ts";
+
+export function unclassifiedCardIds(
+  data: Pick<Ledger, "accounts" | "entries">,
+): Set<string> {
+  const cards = new Set(
+    data.accounts.filter((a) => a.role === "CREDIT_CARD").map((a) => a.id),
+  );
+  return new Set(
+    data.entries
+      .filter(
+        (entry) =>
+          cards.has(entry.accountId) &&
+          (entry.kind === "EXPENSE" || entry.kind === "REFUND") &&
+          !entry.cardBudget,
+      )
+      .map((entry) => entry.id),
+  );
+}
 
 export function searchTransactions(
   entries: Entry[],

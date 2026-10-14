@@ -2,7 +2,10 @@ import {
   changeCardBudgets,
   changeTransactionCategories,
 } from "../src/features/ledger/transaction-edit.ts";
-import { possibleDuplicateIds } from "../src/features/ledger/transaction-search.ts";
+import {
+  possibleDuplicateIds,
+  unclassifiedCardIds,
+} from "../src/features/ledger/transaction-search.ts";
 import { wealthHistory } from "../src/features/ledger/wealth-history.ts";
 import {
   searchTransactions,
@@ -2625,4 +2628,35 @@ test("bulk card budget rejects stale, mixed, duplicate and oversized selections 
   const changedRole = structuredClone(data);
   assert.throws(() => changeCardBudgets(data, ["card-0"], "FIXED"));
   assert.deepEqual(data, changedRole);
+});
+
+test("unclassified card filter excludes bank spending and settlement and updates after classification", () => {
+  const data = cardBudgetFixture();
+  delete data.entries[0]!.cardBudget;
+  delete data.entries[2]!.cardBudget;
+  data.entries[0]!.description = "점심";
+  const before = structuredClone(data);
+  assert.deepEqual([...unclassifiedCardIds(data)], ["living", "refund"]);
+  const ids = unclassifiedCardIds(data);
+  const filtered = searchTransactions(
+    data.entries.filter((e) => ids.has(e.id)),
+    {
+      month: "2026-01",
+      accountId: "card",
+      kind: "EXPENSE",
+      query: "점심",
+    },
+  );
+  assert.deepEqual(
+    filtered.map((e) => e.id),
+    ["living"],
+  );
+  assert.deepEqual(data, before);
+  changeCardBudgets(data, ["living"], "LIVING");
+  assert.deepEqual([...unclassifiedCardIds(data)], ["refund"]);
+  changeCardBudgets(data, ["refund"], "LIVING");
+  assert.equal(unclassifiedCardIds(data).size, 0);
+  changeCardBudgets(data, ["living"], "");
+  data.accounts.find((a) => a.id === "card")!.role = "LOAN";
+  assert.equal(unclassifiedCardIds(data).size, 0);
 });

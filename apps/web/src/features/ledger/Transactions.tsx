@@ -2,7 +2,10 @@ import {
   changeCardBudgets,
   changeTransactionCategories,
 } from "./transaction-edit";
-import { possibleDuplicateIds } from "./transaction-search";
+import {
+  possibleDuplicateIds,
+  unclassifiedCardIds,
+} from "./transaction-search";
 import { searchTransactions, transactionPage } from "./transaction-search";
 import { SpendingSummary } from "./SpendingSummary";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -41,6 +44,11 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
   const [error, setError] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [duplicatesOnly, setDuplicatesOnly] = useState(false);
+  const [unclassifiedOnly, setUnclassifiedOnly] = useState(false);
+  const unclassifiedIds = useMemo(
+    () => unclassifiedCardIds(data),
+    [data.accounts, data.entries],
+  );
   const duplicateIds = useMemo(
     () => possibleDuplicateIds(data.entries),
     [data.entries],
@@ -59,7 +67,16 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
   useEffect(() => {
     setSelectedIds([]);
     setBulkError("");
-  }, [page, query, filter, month, kindFilter, duplicatesOnly, categoryFilter]);
+  }, [
+    page,
+    query,
+    filter,
+    month,
+    kindFilter,
+    duplicatesOnly,
+    unclassifiedOnly,
+    categoryFilter,
+  ]);
   const listRef = useRef<HTMLDivElement>(null);
   function goToPage(next: number) {
     setPage(next);
@@ -156,9 +173,11 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
   const baseVisible = useMemo(
     () =>
       searchTransactions(
-        duplicatesOnly
-          ? data.entries.filter((e) => duplicateIds.has(e.id))
-          : data.entries,
+        data.entries.filter(
+          (e) =>
+            (!duplicatesOnly || duplicateIds.has(e.id)) &&
+            (!unclassifiedOnly || unclassifiedIds.has(e.id)),
+        ),
         {
           month,
           accountId: filter,
@@ -174,6 +193,8 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
       query,
       duplicatesOnly,
       duplicateIds,
+      unclassifiedOnly,
+      unclassifiedIds,
     ],
   );
   const visible = categoryFilter
@@ -475,6 +496,7 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
             setQuery("");
             setKindFilter("");
             setDuplicatesOnly(false);
+            setUnclassifiedOnly(false);
             setFilter("");
             setCategoryFilter("");
             setPage(0);
@@ -502,6 +524,30 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
           수정·삭제하세요. 이체와 잔액 조정은 검사하지 않습니다. 합계는 현재
           조회 조건에 맞는 거래만 포함합니다.
         </p>
+      )}
+      {(unclassifiedOnly ||
+        data.accounts.some((a) => a.role === "CREDIT_CARD")) && (
+        <>
+          <label className="ledger-checkbox">
+            <input
+              type="checkbox"
+              checked={unclassifiedOnly}
+              onChange={(e) => {
+                setUnclassifiedOnly(e.target.checked);
+                setCategoryFilter("");
+                setPage(0);
+              }}
+            />
+            카드 예산 미분류만 보기 (전체 기록 {unclassifiedIds.size}건)
+          </label>
+          {unclassifiedOnly && (
+            <p className="ledger-note">
+              고정비·생활비를 지정하지 않은 카드 지출·환불입니다. 조회
+              월·계좌·검색 조건을 함께 적용합니다. 목록에서 선택해 카드 예산을
+              지정하면 이 목록에서 제외됩니다.
+            </p>
+          )}
+        </>
       )}
       <SpendingSummary
         entries={baseVisible}
