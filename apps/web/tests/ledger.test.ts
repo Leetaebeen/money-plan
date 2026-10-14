@@ -2660,3 +2660,56 @@ test("unclassified card filter excludes bank spending and settlement and updates
   data.accounts.find((a) => a.id === "card")!.role = "LOAN";
   assert.equal(unclassifiedCardIds(data).size, 0);
 });
+
+test("salary cycle repair view covers both months and excludes future and earlier records", () => {
+  const data = cardBudgetFixture();
+  delete data.entries[0]!.cardBudget;
+  delete data.entries[2]!.cardBudget;
+  for (const [id, date] of [
+    ["prior", "2026-01-24"],
+    ["start", "2026-01-25"],
+    ["today", "2026-02-01"],
+    ["future", "2026-02-02"],
+  ]) {
+    data.entries.push(
+      entry({
+        id: id!,
+        date: date!,
+        accountId: "card",
+        kind: "EXPENSE",
+        amount: -100,
+      }),
+    );
+  }
+  const cycle = cycleBudget(data, "2026-02-01")!;
+  assert.equal(cycle.unclassifiedCards, 4);
+  assert.equal(cycle.missingBudgetCards, 0);
+  const ids = unclassifiedCardIds(data);
+  const rows = searchTransactions(
+    data.entries.filter((e) => ids.has(e.id)),
+    {
+      month: "",
+      accountId: "",
+      kind: "",
+      query: "",
+      from: cycle.start,
+      to: cycle.asOf,
+    },
+  );
+  assert.deepEqual(
+    rows.map((e) => e.id),
+    ["today", "refund", "living", "start"],
+  );
+  changeCardBudgets(
+    data,
+    rows.map((e) => e.id),
+    "LIVING",
+  );
+  assert.equal(cycleBudget(data, "2026-02-01")!.unassignedCards, 0);
+  data.monthlyPlan!.fixedAccountId = null;
+  data.monthlyPlan!.fixedAmount = 0;
+  const missing = cycleBudget(data, "2026-02-01")!;
+  assert.equal(missing.unclassifiedCards, 0);
+  assert.equal(missing.missingBudgetCards, 1);
+  assert.equal(missing.unassignedCards, 1);
+});

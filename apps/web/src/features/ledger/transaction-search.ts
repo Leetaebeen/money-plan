@@ -1,5 +1,11 @@
 import type { Entry, EntryKind, Ledger } from "./model.ts";
 
+export type TransactionView = {
+  from: string;
+  to: string;
+  unclassifiedOnly: boolean;
+};
+
 export function unclassifiedCardIds(
   data: Pick<Ledger, "accounts" | "entries">,
 ): Set<string> {
@@ -25,6 +31,8 @@ export function searchTransactions(
     accountId: string;
     kind: EntryKind | "";
     query: string;
+    from?: string;
+    to?: string;
   },
 ) {
   const normalize = (value: string) => value.normalize("NFKC").toLowerCase();
@@ -32,6 +40,8 @@ export function searchTransactions(
   return entries
     .filter((entry) => {
       if (filters.month && !entry.date.startsWith(filters.month)) return false;
+      if (filters.from && entry.date < filters.from) return false;
+      if (filters.to && entry.date > filters.to) return false;
       if (filters.accountId && entry.accountId !== filters.accountId)
         return false;
       if (filters.kind && entry.kind !== filters.kind) return false;

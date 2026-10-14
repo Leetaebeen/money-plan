@@ -5,6 +5,7 @@ import {
 import {
   possibleDuplicateIds,
   unclassifiedCardIds,
+  type TransactionView,
 } from "./transaction-search";
 import { searchTransactions, transactionPage } from "./transaction-search";
 import { SpendingSummary } from "./SpendingSummary";
@@ -24,13 +25,24 @@ import { Empty, type PanelProps } from "./shared";
 import { ImportPanel } from "./ImportPanel";
 import { undoImport } from "./store";
 type Props = PanelProps & {
+  initialView?: TransactionView;
+  onPlan?: () => void;
   snapshot: LedgerSnapshot;
   run: (
     action: () => Promise<LedgerSnapshot>,
     message: string,
   ) => Promise<boolean>;
 };
-export function Transactions({ data, snapshot, busy, change, run }: Props) {
+export function Transactions({
+  data,
+  snapshot,
+  busy,
+  change,
+  run,
+  initialView,
+  onPlan,
+}: Props) {
+  const [dateRange, setDateRange] = useState(initialView);
   const [showImport, setShowImport] = useState(false);
   const [editing, setEditing] = useState<Entry | "new" | null>(null);
   const [account, setAccount] = useState(data.accounts[0]?.id ?? "");
@@ -44,7 +56,9 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
   const [error, setError] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [duplicatesOnly, setDuplicatesOnly] = useState(false);
-  const [unclassifiedOnly, setUnclassifiedOnly] = useState(false);
+  const [unclassifiedOnly, setUnclassifiedOnly] = useState(
+    initialView?.unclassifiedOnly ?? false,
+  );
   const unclassifiedIds = useMemo(
     () => unclassifiedCardIds(data),
     [data.accounts, data.entries],
@@ -56,7 +70,7 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
   const [query, setQuery] = useState("");
   const [kindFilter, setKindFilter] = useState<EntryKind | "">("");
   const [filter, setFilter] = useState("");
-  const [month, setMonth] = useState(today().slice(0, 7));
+  const [month, setMonth] = useState(initialView ? "" : today().slice(0, 7));
   const [page, setPage] = useState(0);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkCategory, setBulkCategory] = useState("");
@@ -75,6 +89,7 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
     kindFilter,
     duplicatesOnly,
     unclassifiedOnly,
+    dateRange,
     categoryFilter,
   ]);
   const listRef = useRef<HTMLDivElement>(null);
@@ -183,6 +198,8 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
           accountId: filter,
           kind: kindFilter,
           query,
+          from: dateRange?.from,
+          to: dateRange?.to,
         },
       ),
     [
@@ -195,6 +212,7 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
       duplicateIds,
       unclassifiedOnly,
       unclassifiedIds,
+      dateRange,
     ],
   );
   const visible = categoryFilter
@@ -463,6 +481,7 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
             value={month}
             onChange={(e) => {
               setMonth(e.target.value);
+              setDateRange(undefined);
               setCategoryFilter("");
               setPage(0);
             }}
@@ -497,6 +516,7 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
             setKindFilter("");
             setDuplicatesOnly(false);
             setUnclassifiedOnly(false);
+            setDateRange(undefined);
             setFilter("");
             setCategoryFilter("");
             setPage(0);
@@ -505,6 +525,17 @@ export function Transactions({ data, snapshot, busy, change, run }: Props) {
           필터 초기화 (조회 월 유지)
         </button>
       </p>
+      {dateRange && (
+        <p className="ledger-note" role="status">
+          급여 주기 조회: {dateRange.from} ~ {dateRange.to}. 조회 월을
+          선택하거나 필터를 초기화하면 기간 제한이 해제됩니다.{" "}
+          {onPlan && (
+            <button className="ledger-text-btn" onClick={onPlan}>
+              월급 예산으로 돌아가기 →
+            </button>
+          )}
+        </p>
+      )}
       <label className="ledger-checkbox">
         <input
           type="checkbox"

@@ -1,4 +1,5 @@
 import type { ScheduleView } from "./schedules";
+import type { TransactionView } from "./transaction-search";
 import { useEffect, useRef, useState } from "react";
 import { App as LegacyPlanner } from "../../app/App";
 import { UpdatePrompt } from "../../components/UpdatePrompt";
@@ -36,6 +37,9 @@ const tabs: { id: Screen; label: string; symbol: string }[] = [
 export function LedgerApp() {
   const [snapshot, setSnapshot] = useState<LedgerSnapshot | null>(null);
   const [scheduleView, setScheduleView] = useState<ScheduleView | undefined>();
+  const [transactionView, setTransactionView] = useState<
+    TransactionView | undefined
+  >();
   const [screen, setScreen] = useState<Screen>("home");
   const [busy, setBusy] = useState(false);
   const lock = useRef(false);
@@ -92,6 +96,7 @@ export function LedgerApp() {
     return run(() => mutateLedger(snapshot.revision, fn), message);
   }
   function navigate(next: Screen, view?: ScheduleView) {
+    setTransactionView(undefined);
     setScheduleView(view);
     setScreen(next);
     setError("");
@@ -367,6 +372,10 @@ export function LedgerApp() {
                   change={change}
                   onGoals={() => navigate("goals")}
                   onAccounts={() => navigate("accounts")}
+                  onTransactions={(view) => {
+                    navigate("transactions");
+                    setTransactionView(view);
+                  }}
                 />
               )}
               {screen === "accounts" && (
@@ -377,6 +386,8 @@ export function LedgerApp() {
               )}
               {screen === "transactions" && (
                 <Transactions
+                  initialView={transactionView}
+                  onPlan={() => navigate("plan")}
                   data={data}
                   snapshot={snapshot}
                   busy={busy}

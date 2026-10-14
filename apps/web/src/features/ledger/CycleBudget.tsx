@@ -1,7 +1,14 @@
 import { cycleBudget } from "./cycle-budget";
 import { won, type Ledger } from "./model";
+import type { TransactionView } from "./transaction-search";
 
-export function CycleBudget({ data }: { data: Ledger }) {
+export function CycleBudget({
+  data,
+  onTransactions,
+}: {
+  data: Ledger;
+  onTransactions?: (view: TransactionView) => void;
+}) {
   const result = cycleBudget(data);
   if (!result) return null;
   return (
@@ -23,6 +30,27 @@ export function CycleBudget({ data }: { data: Ledger }) {
           이번 주기에 예산 미분류 또는 연결할 예산 계좌가 없는 카드 거래가{" "}
           {result.unassignedCards}건 있어 남은 예산·하루 기준액 계산을
           보류합니다. 거래 수정에서 카드 소비 예산을 선택하고 월급 계획의 해당
+          계좌를 지정해 주세요.
+        </p>
+      )}
+      {result.unclassifiedCards > 0 && onTransactions && (
+        <button
+          className="ledger-btn"
+          onClick={() =>
+            onTransactions({
+              from: result.start,
+              to: result.asOf,
+              unclassifiedOnly: true,
+            })
+          }
+        >
+          이번 급여 주기 미분류 {result.unclassifiedCards}건 정리하기 →
+        </button>
+      )}
+      {result.missingBudgetCards > 0 && (
+        <p className="ledger-note">
+          이미 분류했지만 연결할 예산 계좌가 없는 거래{" "}
+          {result.missingBudgetCards}건은 월급 계획 수정에서 고정비·생활비
           계좌를 지정해 주세요.
         </p>
       )}

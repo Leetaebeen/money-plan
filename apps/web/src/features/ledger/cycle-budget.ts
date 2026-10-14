@@ -41,6 +41,8 @@ export function cycleBudget(data: Ledger, asOf = today()) {
         ? plan.livingAccountId
         : null;
   const unassignedCards = cardEntries.filter((e) => !targetFor(e)).length;
+  const unclassifiedCards = cardEntries.filter((e) => !e.cardBudget).length;
+  const missingBudgetCards = unassignedCards - unclassifiedCards;
   const partialCards = cards.some((a) => a.openingDate > cycle.start);
   const hasCard = cards.length > 0;
   const rows = [...budgets].map(([id, budget]) => {
@@ -79,6 +81,8 @@ export function cycleBudget(data: Ledger, asOf = today()) {
     daysLeft,
     hasCard,
     unassignedCards,
+    unclassifiedCards,
+    missingBudgetCards,
     partialCards,
     rows,
   };

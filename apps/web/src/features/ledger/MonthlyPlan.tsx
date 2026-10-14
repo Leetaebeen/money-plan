@@ -1,4 +1,5 @@
 import type { ScheduleView } from "./schedules";
+import type { TransactionView } from "./transaction-search";
 import { useState } from "react";
 import {
   isLiability,
@@ -21,6 +22,7 @@ type Props = PanelProps & {
   onGoals: () => void;
   onAccounts: () => void;
   scheduleView?: ScheduleView;
+  onTransactions?: (view: TransactionView) => void;
 };
 
 export function MonthlyPlan({
@@ -30,6 +32,7 @@ export function MonthlyPlan({
   onGoals,
   onAccounts,
   scheduleView,
+  onTransactions,
 }: Props) {
   const [editing, setEditing] = useState(!data.monthlyPlan);
   const [draft, setDraft] = useState(() => draftFrom(data));
@@ -291,7 +294,7 @@ export function MonthlyPlan({
       <SavingsActuals data={data} busy={busy} change={change} />
       {plan && result && (
         <>
-          <CycleBudget data={data} />
+          <CycleBudget data={data} onTransactions={onTransactions} />
           {editing && (
             <p className="ledger-note">
               아래는 마지막으로 저장한 계획입니다. 수정 내용은 저장 후 반영돼요.
