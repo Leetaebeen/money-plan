@@ -9,6 +9,7 @@ import {
 } from "./transaction-search";
 import { searchTransactions, transactionPage } from "./transaction-search";
 import { SpendingSummary } from "./SpendingSummary";
+import { compareMonthlySpending } from "./spending-summary";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   kinds,
@@ -223,6 +224,31 @@ export function Transactions({
           (e.category.trim() || "미분류") === categoryFilter,
       )
     : baseVisible;
+  const comparisonAsOf = today();
+  const comparison = useMemo(() => {
+    if (dateRange || !month) return null;
+    const entries = searchTransactions(
+      data.entries.filter(
+        (e) =>
+          (!duplicatesOnly || duplicateIds.has(e.id)) &&
+          (!unclassifiedOnly || unclassifiedIds.has(e.id)),
+      ),
+      { month: "", accountId: filter, kind: kindFilter, query },
+    );
+    return compareMonthlySpending(entries, month, comparisonAsOf);
+  }, [
+    data.entries,
+    dateRange,
+    month,
+    filter,
+    kindFilter,
+    query,
+    duplicatesOnly,
+    duplicateIds,
+    unclassifiedOnly,
+    unclassifiedIds,
+    comparisonAsOf,
+  ]);
   const pageView = transactionPage(visible, page);
   const selectable = pageView.entries.filter(
     (entry) => entry.kind === "EXPENSE" || entry.kind === "REFUND",
@@ -581,6 +607,7 @@ export function Transactions({
         </>
       )}
       <SpendingSummary
+        comparison={comparison}
         entries={baseVisible}
         selected={categoryFilter}
         onSelect={(category) => {

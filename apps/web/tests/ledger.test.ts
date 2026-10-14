@@ -11,7 +11,10 @@ import {
   searchTransactions,
   transactionPage,
 } from "../src/features/ledger/transaction-search.ts";
-import { spendingSummary } from "../src/features/ledger/spending-summary.ts";
+import {
+  spendingSummary,
+  compareMonthlySpending,
+} from "../src/features/ledger/spending-summary.ts";
 import { compareBackup } from "../src/features/ledger/backup-comparison.ts";
 import { upcomingPayments } from "../src/features/ledger/upcoming-payments.ts";
 import {
@@ -2712,4 +2715,61 @@ test("salary cycle repair view covers both months and excludes future and earlie
   assert.equal(missing.unclassifiedCards, 0);
   assert.equal(missing.missingBudgetCards, 1);
   assert.equal(missing.unassignedCards, 1);
+});
+
+test("monthly spending comparison aligns elapsed dates and preserves refunds", () => {
+  const entries = [
+    entry({ id: "now", date: "2026-03-14", amount: -10000 }),
+    entry({ id: "refund", date: "2026-03-01", kind: "REFUND", amount: 2000 }),
+    entry({ id: "prior", date: "2026-02-14", amount: -5000 }),
+    entry({ id: "late-prior", date: "2026-02-15", amount: -100000 }),
+    entry({ id: "future", date: "2026-03-15", amount: -100000 }),
+    entry({
+      id: "transfer",
+      date: "2026-03-01",
+      kind: "TRANSFER",
+      amount: -100000,
+    }),
+  ];
+  const before = structuredClone(entries);
+  const report = compareMonthlySpending(entries, "2026-03", "2026-03-14")!;
+  assert.equal(report.previousEnd, "2026-02-14");
+  assert.equal(report.end, "2026-03-14");
+  assert.equal(report.current.net, 8000);
+  assert.equal(report.previous.net, 5000);
+  assert.equal(report.difference, 3000);
+  assert.deepEqual(entries, before);
+  assert.equal(
+    compareMonthlySpending(entries, "2026-03", "2026-03-31")!.previousEnd,
+    "2026-02-28",
+  );
+  assert.equal(
+    compareMonthlySpending([], "2024-03", "2024-03-31")!.previousEnd,
+    "2024-02-29",
+  );
+});
+
+test("past months compare complete months and missing records do not imply savings", () => {
+  const entries = [
+    entry({ date: "2025-12-31", amount: -10000 }),
+    entry({ id: "refund", date: "2026-01-31", kind: "REFUND", amount: 2000 }),
+  ];
+  const report = compareMonthlySpending(entries, "2026-01", "2026-03-14")!;
+  assert.equal(report.end, "2026-01-31");
+  assert.equal(report.previousStart, "2025-12-01");
+  assert.equal(report.previousEnd, "2025-12-31");
+  assert.equal(report.difference, -12000);
+  assert.equal(
+    compareMonthlySpending(entries.slice(0, 1), "2026-01", "2026-03-14")!
+      .difference,
+    null,
+  );
+  assert.equal(
+    compareMonthlySpending(entries.slice(1), "2026-01", "2026-03-14")!
+      .difference,
+    null,
+  );
+  for (const month of ["", "2026-13", "2026-04", "invalid"]) {
+    assert.equal(compareMonthlySpending(entries, month, "2026-03-14"), null);
+  }
 });
