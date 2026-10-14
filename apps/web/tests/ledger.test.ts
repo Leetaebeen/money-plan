@@ -2,6 +2,7 @@ import {
   changeCardBudgets,
   changeTransactionCategories,
 } from "../src/features/ledger/transaction-edit.ts";
+import { goalHistory } from "../src/features/ledger/goal-history.ts";
 import {
   possibleDuplicateIds,
   unclassifiedCardIds,
@@ -62,6 +63,8 @@ import { maturityMetrics } from "../src/features/ledger/maturities.ts";
 import { captureMonthlyPlan } from "../src/features/ledger/plan-history.ts";
 import {
   updateOneTimePayment,
+  reviseRecurringSchedule,
+  nextScheduleMonth,
   scheduleDate,
   scheduleMonth,
   recordScheduledPayment,
@@ -2836,5 +2839,171 @@ test("category changes reconcile net difference including new, absent and refund
       "2026-03-14",
     )!.changes,
     [],
+  );
+});
+
+test("goal history tracks month-end balances and adjustments without inventing earlier savings", () => {
+  const data = fixture();
+  data.entries = [
+    entry({
+      accountId: "save",
+      date: "2026-02-01",
+      amount: 1000000,
+      kind: "ADJUSTMENT",
+    }),
+    entry({
+      id: "withdraw",
+      accountId: "save",
+      date: "2026-03-01",
+      amount: -200000,
+      kind: "EXPENSE",
+    }),
+    entry({
+      id: "future",
+      accountId: "save",
+      date: "2026-03-15",
+      amount: 999999,
+      kind: "INCOME",
+    }),
+  ];
+  const before = structuredClone(data);
+  const rows = goalHistory(data.goals[0]!, data, "2026-03-14");
+  assert.equal(rows.length, 6);
+  assert.equal(rows[2]!.saved, null);
+  assert.equal(rows[3]!.saved, 10000000);
+  assert.equal(rows[3]!.change, null);
+  assert.equal(rows[4]!.saved, 11000000);
+  assert.equal(rows[4]!.change, 1000000);
+  assert.equal(rows[5]!.date, "2026-03-14");
+  assert.equal(rows[5]!.saved, 10800000);
+  assert.equal(rows[5]!.change, -200000);
+  assert.equal(rows[5]!.remaining, 39200000);
+  assert.equal(rows[5]!.percent, 21.6);
+  assert.deepEqual(data, before);
+  data.goals[0]!.target = 10000000;
+  assert.equal(
+    goalHistory(data.goals[0]!, data, "2026-03-14")[5]!.remaining,
+    0,
+  );
+  assert.equal(
+    goalHistory(data.goals[0]!, data, "2026-03-14")[5]!.percent,
+    108,
+  );
+});
+
+test("goal history withholds totals for missing accounts and unknown opening balances", () => {
+  const data = fixture();
+  data.goals[0]!.accountIds.push("missing");
+  assert.ok(
+    goalHistory(data.goals[0]!, data, "2026-03-14").every(
+      (r) => r.saved === null && r.change === null,
+    ),
+  );
+  data.goals[0]!.accountIds = ["save"];
+  data.accounts[1]!.openingBalance = null;
+  assert.ok(
+    goalHistory(data.goals[0]!, data, "2026-03-14").every(
+      (r) => r.remaining === null && r.percent === null,
+    ),
+  );
+  assert.throws(() => goalHistory(data.goals[0]!, data, "invalid"));
+});
+
+test("recurring schedule changes preserve paid history and apply only from selected month", () => {
+  const data = fixture();
+  data.schedules = [scheduled({ endDate: "2026-12-31" })];
+  recordScheduledPayment(
+    data,
+    "bill",
+    "2026-01-31",
+    { date: "2026-01-31" },
+    "2026-02-14",
+  );
+  const entries = structuredClone(data.entries);
+  const payments = structuredClone(data.schedules[0]!.payments);
+  reviseRecurringSchedule(data, "bill", "2026-03", 70000, 15, "2026-02-14");
+  validateLedger(data);
+  assert.equal(data.schedules[0]!.endDate, "2026-02-28");
+  assert.deepEqual(data.schedules[0]!.payments, payments);
+  assert.deepEqual(data.entries, entries);
+  const feb = scheduleMonth(data, "2026-02", "2026-02-14");
+  const mar = scheduleMonth(data, "2026-03", "2026-02-14");
+  assert.equal(feb.length, 1);
+  assert.equal(feb[0]!.schedule.amount, 50000);
+  assert.equal(mar.length, 1);
+  assert.equal(mar[0]!.schedule.amount, 70000);
+  assert.equal(mar[0]!.dueDate, "2026-03-15");
+  assert.equal(scheduleMonth(data, "2027-01", "2026-02-14").length, 0);
+  assert.equal(nextScheduleMonth("2026-12-31"), "2027-01");
+});
+
+test("recurring changes reject invalid dates, limits and future links without partial mutation", () => {
+  const data = fixture();
+  data.schedules = [scheduled()];
+  const before = structuredClone(data);
+  for (const [month, amount, day] of [
+    ["2026-02", 50000, 31],
+    ["2026-13", 50000, 31],
+    ["2026-03", 0, 31],
+    ["2026-03", 50000, 32],
+  ] as const) {
+    assert.throws(() =>
+      reviseRecurringSchedule(data, "bill", month, amount, day, "2026-02-14"),
+    );
+    assert.deepEqual(data, before);
+  }
+  recordScheduledPayment(
+    data,
+    "bill",
+    "2026-03-31",
+    { date: "2026-02-14" },
+    "2026-02-14",
+  );
+  const linked = structuredClone(data);
+  assert.throws(() =>
+    reviseRecurringSchedule(data, "bill", "2026-03", 60000, 15, "2026-02-14"),
+  );
+  assert.deepEqual(data, linked);
+  data.schedules = Array.from({ length: 100 }, (_, i) =>
+    scheduled({ id: `schedule-${i}` }),
+  );
+  const full = structuredClone(data);
+  assert.throws(() =>
+    reviseRecurringSchedule(
+      data,
+      "schedule-0",
+      "2026-03",
+      60000,
+      15,
+      "2026-02-14",
+    ),
+  );
+  assert.deepEqual(data, full);
+});
+
+test("recurring card changes detect collisions beyond the first changed month", () => {
+  const data = cardBudgetFixture();
+  data.schedules = [
+    scheduled({ targetAccountId: "card", endDate: "2026-12-31" }),
+    scheduled({
+      id: "later",
+      targetAccountId: "card",
+      startDate: "2026-05-15",
+      endDate: "2026-05-15",
+      day: 15,
+    }),
+  ];
+  const before = structuredClone(data);
+  assert.throws(
+    () =>
+      reviseRecurringSchedule(data, "bill", "2026-03", 70000, 20, "2026-02-14"),
+    /같은 카드/,
+  );
+  assert.deepEqual(data, before);
+  data.schedules.pop();
+  reviseRecurringSchedule(data, "bill", "2026-02", 70000, 31, "2026-01-14");
+  assert.equal(
+    scheduleMonth(data, "2026-02", "2026-01-14")[0]!.dueDate,
+    "2026-02-28",
   );
 });

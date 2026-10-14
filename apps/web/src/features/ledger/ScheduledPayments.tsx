@@ -8,6 +8,7 @@ import {
   scheduleMonth,
 } from "./schedules";
 import type { PanelProps } from "./shared";
+import { RecurringScheduleEditor } from "./RecurringScheduleEditor";
 
 export function ScheduledPayments({
   data,
@@ -621,6 +622,14 @@ export function ScheduledPayments({
                   예정 금액·날짜 수정
                 </button>
               )}
+              {s.startDate !== s.endDate &&
+                (!s.endDate || s.endDate.slice(0, 7) > today().slice(0, 7)) && (
+                  <RecurringScheduleEditor
+                    schedule={s}
+                    busy={busy}
+                    change={change}
+                  />
+                )}
               <button
                 className="ledger-text-btn"
                 disabled={busy}

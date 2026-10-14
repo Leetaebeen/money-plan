@@ -285,3 +285,82 @@ export interface ScheduleView {
   accountId?: string;
   cardId?: string;
 }
+
+export function nextScheduleMonth(asOf = today()) {
+  if (!validDate(asOf)) throw new Error("기준일을 확인해 주세요.");
+  const next = new Date(`${asOf.slice(0, 7)}-01T00:00:00Z`);
+  next.setUTCMonth(next.getUTCMonth() + 1);
+  return next.toISOString().slice(0, 7);
+}
+
+export function reviseRecurringSchedule(
+  data: Ledger,
+  id: string,
+  month: string,
+  amount: number,
+  day: number,
+  asOf = today(),
+) {
+  const old = data.schedules.find((s) => s.id === id);
+  if (!old || old.startDate === old.endDate)
+    throw new Error("반복 납부 일정을 다시 선택해 주세요.");
+  const startDate = `${month}-01`;
+  if (!validDate(startDate) || month < nextScheduleMonth(asOf))
+    throw new Error("다음 달 이후의 적용 월을 선택해 주세요.");
+  const endDate = new Date(Date.parse(startDate) - 86400000)
+    .toISOString()
+    .slice(0, 10);
+  if (endDate < old.startDate || (old.endDate && startDate > old.endDate))
+    throw new Error(
+      "기존 일정의 시작 월 다음부터 종료 월 사이에서 선택해 주세요.",
+    );
+  if (old.payments.some((payment) => payment.dueDate >= startDate))
+    throw new Error(
+      "변경할 기간에 연결된 납부 거래가 있습니다. 먼저 연결을 해제해 주세요.",
+    );
+  const next: PaymentSchedule = {
+    ...old,
+    id: crypto.randomUUID(),
+    startDate,
+    amount,
+    day,
+    payments: [],
+  };
+  const schedules = data.schedules
+    .map((s) => (s.id === id ? { ...s, endDate } : s))
+    .concat(next);
+  validateSchedules({ ...data, schedules });
+  const firstDate = scheduleDate(next, month);
+  if (
+    !firstDate ||
+    [old.accountId, old.targetAccountId].filter(Boolean).some((accountId) => {
+      const account = data.accounts.find((a) => a.id === accountId);
+      return !account || firstDate < account.openingDate;
+    })
+  )
+    throw new Error(
+      "적용 월의 납부일이 계좌 기준일과 일정 종료일 사이인지 확인해 주세요.",
+    );
+  if (
+    data.accounts.find((a) => a.id === old.targetAccountId)?.role ===
+    "CREDIT_CARD"
+  ) {
+    const cursor = new Date(`${startDate}T00:00:00Z`);
+    while (cursor.getUTCFullYear() < 2100) {
+      const candidateMonth = cursor.toISOString().slice(0, 7);
+      if (next.endDate && `${candidateMonth}-01` > next.endDate) break;
+      if (
+        scheduleDate(next, candidateMonth) &&
+        data.schedules.some(
+          (s) =>
+            s.id !== id &&
+            s.targetAccountId === old.targetAccountId &&
+            scheduleDate(s, candidateMonth),
+        )
+      )
+        throw new Error("변경 기간에 같은 카드의 결제 일정이 이미 있습니다.");
+      cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+    }
+  }
+  data.schedules = schedules;
+}
