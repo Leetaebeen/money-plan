@@ -293,6 +293,34 @@ export function nextScheduleMonth(asOf = today()) {
   return next.toISOString().slice(0, 7);
 }
 
+export function stopRecurringSchedule(
+  data: Ledger,
+  id: string,
+  endDate: string,
+  asOf = today(),
+) {
+  const old = data.schedules.find((s) => s.id === id);
+  if (!old || old.startDate === old.endDate)
+    throw new Error("반복 납부 일정을 다시 선택해 주세요.");
+  if (
+    !validDate(asOf) ||
+    !validDate(endDate) ||
+    endDate < asOf ||
+    endDate < old.startDate ||
+    (old.endDate && endDate > old.endDate)
+  )
+    throw new Error("오늘 이후, 기존 일정 기간 안의 종료일을 선택해 주세요.");
+  if (old.payments.some((p) => p.dueDate > endDate))
+    throw new Error(
+      "종료일 이후에 연결된 납부 거래가 있습니다. 먼저 연결을 해제해 주세요.",
+    );
+  const schedules = data.schedules.map((s) =>
+    s.id === id ? { ...s, endDate } : s,
+  );
+  validateSchedules({ ...data, schedules });
+  data.schedules = schedules;
+}
+
 export function reviseRecurringSchedule(
   data: Ledger,
   id: string,

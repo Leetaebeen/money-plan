@@ -13,7 +13,7 @@ export function AnnualContributions({ data }: { data: Ledger }) {
   if (!rows.length) return null;
   return (
     <section className="ledger-panel" aria-label="ISA·연금저축 연간 입출금">
-      <h3>ISA·연금저축에 올해 얼마나 옮겼나요?</h3>
+      <h3>ISA·연금저축 연간 입출금</h3>
       <label>
         입출금 조회 연도
         <select value={year} onChange={(e) => setYear(Number(e.target.value))}>

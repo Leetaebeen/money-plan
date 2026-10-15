@@ -9,6 +9,7 @@ import {
 } from "./schedules";
 import type { PanelProps } from "./shared";
 import { RecurringScheduleEditor } from "./RecurringScheduleEditor";
+import { ScheduleStopper } from "./ScheduleStopper";
 
 export function ScheduledPayments({
   data,
@@ -648,6 +649,10 @@ export function ScheduledPayments({
               >
                 일정 삭제
               </button>
+              {s.startDate !== s.endDate &&
+                (!s.endDate || s.endDate >= today()) && (
+                  <ScheduleStopper schedule={s} busy={busy} change={change} />
+                )}
             </div>
           ))}
         </details>

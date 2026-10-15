@@ -70,6 +70,7 @@ import {
   updateOneTimePayment,
   reviseRecurringSchedule,
   nextScheduleMonth,
+  stopRecurringSchedule,
   scheduleDate,
   scheduleMonth,
   recordScheduledPayment,
@@ -3187,4 +3188,45 @@ test("annual ISA and pension totals count transfers only within the selected yea
   );
   assert.throws(() => annualContributions(data, 2027, "2026-03-14"));
   assert.deepEqual(data, before);
+});
+
+test("ending recurring schedules preserves previous payments and the inclusive last due date", () => {
+  const data = fixture();
+  data.schedules = [scheduled()];
+  recordScheduledPayment(
+    data,
+    "bill",
+    "2026-01-31",
+    { date: "2026-01-31" },
+    "2026-02-14",
+  );
+  const entries = structuredClone(data.entries);
+  const payments = structuredClone(data.schedules[0]!.payments);
+  stopRecurringSchedule(data, "bill", "2026-02-28", "2026-02-14");
+  validateLedger(data);
+  assert.equal(scheduleMonth(data, "2026-02", "2026-02-14").length, 1);
+  assert.equal(scheduleMonth(data, "2026-03", "2026-02-14").length, 0);
+  assert.deepEqual(data.entries, entries);
+  assert.deepEqual(data.schedules[0]!.payments, payments);
+  stopRecurringSchedule(data, "bill", "2026-02-27", "2026-02-14");
+  assert.equal(scheduleMonth(data, "2026-02", "2026-02-14").length, 0);
+});
+
+test("ending schedules rejects past cutoffs and linked later dues without changing history", () => {
+  const data = fixture();
+  data.schedules = [scheduled()];
+  recordScheduledPayment(
+    data,
+    "bill",
+    "2026-03-31",
+    { date: "2026-02-14" },
+    "2026-02-14",
+  );
+  const before = structuredClone(data);
+  for (const date of ["2026-02-13", "2026-02-28", "invalid"]) {
+    assert.throws(() =>
+      stopRecurringSchedule(data, "bill", date, "2026-02-14"),
+    );
+    assert.deepEqual(data, before);
+  }
 });
