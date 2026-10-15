@@ -3,6 +3,11 @@ import {
   changeTransactionCategories,
 } from "../src/features/ledger/transaction-edit.ts";
 import { goalHistory } from "../src/features/ledger/goal-history.ts";
+import { annualContributions } from "../src/features/ledger/annual-contributions.ts";
+import {
+  reconciliationPreview,
+  reconcileAccountBalance,
+} from "../src/features/ledger/account-reconciliation.ts";
 import {
   possibleDuplicateIds,
   unclassifiedCardIds,
@@ -3006,4 +3011,180 @@ test("recurring card changes detect collisions beyond the first changed month", 
     scheduleMonth(data, "2026-02", "2026-01-14")[0]!.dueDate,
     "2026-02-28",
   );
+});
+
+test("balance reconciliation records only the difference and preserves later transactions", () => {
+  const data = fixture();
+  data.entries = [
+    entry({
+      id: "early",
+      accountId: "cash",
+      date: "2026-01-10",
+      amount: -10000,
+    }),
+    entry({
+      id: "later",
+      accountId: "cash",
+      date: "2026-01-20",
+      amount: -50000,
+    }),
+  ];
+  const original = structuredClone(data.entries);
+  assert.equal(
+    reconciliationPreview(data, "cash", "2026-01-15", 900000, "2026-01-31")
+      .adjustment,
+    -90000,
+  );
+  reconcileAccountBalance(
+    data,
+    "cash",
+    "2026-01-15",
+    900000,
+    " 잔액 확인 ",
+    "2026-01-31",
+  );
+  validateLedger(data);
+  assert.deepEqual(data.entries.slice(0, 2), original);
+  assert.equal(balance(data.accounts[0]!, data.entries, "2026-01-15"), 900000);
+  assert.equal(balance(data.accounts[0]!, data.entries, "2026-01-31"), 850000);
+  assert.equal(spendingSummary(data.entries, "2026-01-31").net, 60000);
+  assert.equal(data.entries[2]!.kind, "ADJUSTMENT");
+  assert.equal(data.entries[2]!.description, "잔액 확인");
+  const reconciled = structuredClone(data);
+  assert.throws(() =>
+    reconcileAccountBalance(
+      data,
+      "cash",
+      "2026-01-15",
+      900000,
+      "same",
+      "2026-01-31",
+    ),
+  );
+  assert.deepEqual(data, reconciled);
+});
+
+test("reconciliation supports signed debt and rejects unknown balances and invalid input atomically", () => {
+  const data = fixture();
+  data.accounts[0]!.role = "LOAN";
+  data.accounts[0]!.openingBalance = -1000000;
+  reconcileAccountBalance(
+    data,
+    "cash",
+    "2026-01-15",
+    -900000,
+    "부채 잔액 확인",
+    "2026-01-31",
+  );
+  assert.equal(data.entries[0]!.amount, 100000);
+  assert.equal(balance(data.accounts[0]!, data.entries, "2026-01-31"), -900000);
+  const before = structuredClone(data);
+  for (const [account, date, actual, note] of [
+    ["missing", "2026-01-15", 1, "a"],
+    ["cash", "2025-12-31", 1, "a"],
+    ["cash", "2026-02-01", 1, "a"],
+    ["cash", "2026-01-15", 1.1, "a"],
+    ["cash", "2026-01-15", 1, " "],
+  ] as const) {
+    assert.throws(() =>
+      reconcileAccountBalance(data, account, date, actual, note, "2026-01-31"),
+    );
+    assert.deepEqual(data, before);
+  }
+  data.accounts[0]!.openingBalance = null;
+  assert.throws(() =>
+    reconciliationPreview(data, "cash", "2026-01-15", 0, "2026-01-31"),
+  );
+});
+
+test("annual ISA and pension totals count transfers only within the selected year", () => {
+  const data = fixture();
+  data.accounts[1]!.role = "ISA";
+  data.accounts.push({
+    id: "pension",
+    name: "연금",
+    role: "PENSION",
+    openingDate: "2026-02-01",
+    openingBalance: 0,
+  });
+  data.entries = [
+    entry({
+      id: "in",
+      accountId: "save",
+      date: "2026-01-15",
+      kind: "TRANSFER",
+      amount: 100000,
+      pairId: "pair",
+    }),
+    entry({
+      id: "source",
+      accountId: "cash",
+      date: "2026-01-15",
+      kind: "TRANSFER",
+      amount: -100000,
+      pairId: "pair",
+    }),
+    entry({
+      id: "out",
+      accountId: "save",
+      date: "2026-02-15",
+      kind: "TRANSFER",
+      amount: -30000,
+    }),
+    entry({
+      id: "gain",
+      accountId: "save",
+      date: "2026-02-15",
+      kind: "ADJUSTMENT",
+      amount: 50000,
+    }),
+    entry({
+      id: "interest",
+      accountId: "save",
+      date: "2026-02-15",
+      kind: "INCOME",
+      amount: 1000,
+    }),
+    entry({
+      id: "future",
+      accountId: "save",
+      date: "2026-03-15",
+      kind: "TRANSFER",
+      amount: 999999,
+    }),
+    entry({
+      id: "prior",
+      accountId: "save",
+      date: "2025-12-31",
+      kind: "TRANSFER",
+      amount: 999999,
+    }),
+    entry({
+      id: "pension",
+      accountId: "pension",
+      date: "2026-02-02",
+      kind: "TRANSFER",
+      amount: 50000,
+    }),
+  ];
+  const before = structuredClone(data);
+  const rows = annualContributions(data, 2026, "2026-03-14");
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0]!.deposited, 100000);
+  assert.equal(rows[0]!.withdrawn, 30000);
+  assert.equal(rows[0]!.net, 70000);
+  assert.equal(rows[0]!.unpaired, 1);
+  assert.equal(rows[0]!.partial, false);
+  assert.equal(rows[1]!.partial, true);
+  assert.equal(rows[0]!.months.length, 3);
+  assert.equal(
+    rows[0]!.months.reduce((sum, m) => sum + m.net, 0),
+    70000,
+  );
+  assert.equal(
+    annualContributions(data, 2025, "2026-03-14")[0]!.months.length,
+    12,
+  );
+  assert.throws(() => annualContributions(data, 2027, "2026-03-14"));
+  assert.deepEqual(data, before);
 });

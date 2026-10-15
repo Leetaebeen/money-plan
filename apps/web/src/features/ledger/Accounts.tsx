@@ -1,4 +1,6 @@
 import { WealthHistory } from "./WealthHistory";
+import { AnnualContributions } from "./AnnualContributions";
+import { AccountReconciliation } from "./AccountReconciliation";
 import { useState } from "react";
 import {
   balance,
@@ -200,6 +202,12 @@ export function Accounts({ data, busy, change }: PanelProps) {
               <p className="ledger-note">
                 파일 반영 {imported ? imported.importedAt.slice(0, 10) : "없음"}
               </p>
+              <AccountReconciliation
+                account={account}
+                data={data}
+                busy={busy}
+                change={change}
+              />
               {planUsesAccount(data.monthlyPlan, account.id) && (
                 <p className="ledger-note">월급 배분 계획에 사용 중</p>
               )}
@@ -236,6 +244,7 @@ export function Accounts({ data, busy, change }: PanelProps) {
           );
         })}
       </div>
+      <AnnualContributions data={data} />
     </section>
   );
 }
