@@ -3190,6 +3190,50 @@ test("annual ISA and pension totals count transfers only within the selected yea
   assert.deepEqual(data, before);
 });
 
+test("one-time goal funding brings dates forward without changing real balances or monthly budgets", () => {
+  const data = fixture();
+  data.goals[0]!.target = 12000000;
+  data.goals[0]!.monthly = 500000;
+  data.goals[0]!.deadline = "2026-12-25";
+  const original = structuredClone(data);
+  const result = goalScenario(data, "goal", 0, 0, "2026-01-14", 1000000);
+  assert.equal(result.before.projected, "2026-04-25");
+  assert.equal(result.after.projected, "2026-02-25");
+  assert.equal(result.after.saved, 11000000);
+  assert.equal(result.monthsEarlier, 2);
+  assert.equal(result.after.monthly, 500000);
+  assert.deepEqual(data, original);
+  data.monthlyPlan = monthlyPlan();
+  const withPlan = goalScenario(
+    data,
+    "goal",
+    100000,
+    50000,
+    "2026-01-14",
+    1000000,
+  );
+  const withoutCash = goalScenario(data, "goal", 100000, 50000, "2026-01-14");
+  assert.deepEqual(withPlan.funding, withoutCash.funding);
+});
+
+test("one-time funding can meet a goal today with no monthly contribution and rejects invalid amounts", () => {
+  const data = fixture();
+  data.goals[0]!.target = 12000000;
+  data.goals[0]!.monthly = 0;
+  const original = structuredClone(data);
+  for (const amount of [2000000, 3000000]) {
+    const result = goalScenario(data, "goal", 0, 0, "2026-01-14", amount);
+    assert.equal(result.after.projected, "2026-01-14");
+    assert.equal(result.after.remaining, 0);
+    assert.equal(result.after.paymentCount, 0);
+    assert.equal(result.before.projected, null);
+  }
+  for (const amount of [-1, 0.5, NaN, Infinity, 1000000000001]) {
+    assert.throws(() => goalScenario(data, "goal", 0, 0, "2026-01-14", amount));
+  }
+  assert.deepEqual(data, original);
+});
+
 test("annual contribution links match account transfer totals and leap-month boundaries", () => {
   const data = fixture();
   data.accounts[1]!.role = "ISA";

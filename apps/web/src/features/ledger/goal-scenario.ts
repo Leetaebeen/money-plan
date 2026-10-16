@@ -1,5 +1,6 @@
 import {
   goalMetrics,
+  projectGoal,
   goalUsesSpendingAccount,
   MAX_WON,
   planRemainder,
@@ -14,9 +15,10 @@ export function goalScenario(
   extraMonthly: number,
   livingCut: number,
   asOf = today(),
+  oneTime = 0,
 ) {
   if (!validDate(asOf)) throw new Error("계산 기준일을 확인해 주세요.");
-  for (const value of [extraMonthly, livingCut]) {
+  for (const value of [extraMonthly, livingCut, oneTime]) {
     if (!Number.isSafeInteger(value) || value < 0 || value > MAX_WON)
       throw new Error(
         "조정 금액은 0원 이상 1조 원 이내의 정수로 입력해 주세요.",
@@ -45,12 +47,10 @@ export function goalScenario(
   const monthly = before.monthly + extraMonthly;
   if (!Number.isSafeInteger(monthly))
     throw new Error("계산 가능한 금액 범위를 초과했습니다.");
-  // Override only this goal's contribution for a read-only projection.
-  const after = goalMetrics(
-    { ...goal, monthly },
-    { ...data, monthlyPlan: null },
-    asOf,
-  )!;
+  const projectedSaved = before.saved + oneTime;
+  if (!Number.isSafeInteger(projectedSaved))
+    throw new Error("계산 가능한 금액 범위를 초과했습니다.");
+  const after = projectGoal(goal, projectedSaved, monthly, asOf);
   const remainder = plan ? planRemainder(plan) : null;
   const adjustedRemainder =
     remainder === null ? null : remainder + livingCut - extraMonthly;
@@ -59,6 +59,7 @@ export function goalScenario(
     after,
     extraMonthly,
     livingCut,
+    oneTime,
     monthsEarlier:
       before.paymentCount === null || after.paymentCount === null
         ? null

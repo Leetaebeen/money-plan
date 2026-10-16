@@ -1,19 +1,29 @@
 import { useState } from "react";
 import { goalScenario } from "./goal-scenario";
-import { money, won, type Goal, type Ledger } from "./model";
+import { money, today, won, type Goal, type Ledger } from "./model";
 
 export function GoalScenario({ goal, data }: { goal: Goal; data: Ledger }) {
   const [extra, setExtra] = useState("100000");
   const [cut, setCut] = useState("0");
-  const [inputs, setInputs] = useState<{ extra: number; cut: number } | null>(
-    null,
-  );
+  const [oneTime, setOneTime] = useState("0");
+  const [inputs, setInputs] = useState<{
+    extra: number;
+    cut: number;
+    oneTime: number;
+  } | null>(null);
   const [error, setError] = useState("");
   let result: ReturnType<typeof goalScenario> | null = null;
   let calculationError = "";
   if (inputs) {
     try {
-      result = goalScenario(data, goal.id, inputs.extra, inputs.cut);
+      result = goalScenario(
+        data,
+        goal.id,
+        inputs.extra,
+        inputs.cut,
+        today(),
+        inputs.oneTime,
+      );
     } catch (e) {
       calculationError =
         e instanceof Error ? e.message : "계획을 확인해 주세요.";
@@ -32,6 +42,7 @@ export function GoalScenario({ goal, data }: { goal: Goal; data: Ledger }) {
             setInputs({
               extra: money(extra),
               cut: data.monthlyPlan ? money(cut) : 0,
+              oneTime: money(oneTime),
             });
           } catch (e) {
             setError(e instanceof Error ? e.message : "금액을 확인해 주세요.");
@@ -39,6 +50,19 @@ export function GoalScenario({ goal, data }: { goal: Goal; data: Ledger }) {
         }}
       >
         <div className="ledger-fields">
+          <label>
+            지금 한 번 더 넣을 돈 (원)
+            <input
+              required
+              inputMode="numeric"
+              value={oneTime}
+              onChange={(e) => {
+                setOneTime(e.target.value);
+                setInputs(null);
+                setError("");
+              }}
+            />
+          </label>
           <label>
             이 목표에 매달 더 모을 돈 (원)
             <input
@@ -81,6 +105,14 @@ export function GoalScenario({ goal, data }: { goal: Goal; data: Ledger }) {
         <div aria-live="polite">
           <dl className="ledger-budget-breakdown">
             <div>
+              <dt>일시금 추가 가정</dt>
+              <dd>{won(result.oneTime)}</dd>
+            </div>
+            <div>
+              <dt>일시금 반영 후 목표 잔액</dt>
+              <dd>{won(result.after.saved)}</dd>
+            </div>
+            <div>
               <dt>현재 월 적립액</dt>
               <dd>{won(result.before.monthly)}</dd>
             </div>
@@ -111,9 +143,11 @@ export function GoalScenario({ goal, data }: { goal: Goal; data: Ledger }) {
               : result.monthsEarlier === 0
                 ? "필요한 납입 횟수는 같아요."
                 : `${result.monthsEarlier}회 적게 납입하면 도달해요.`}
-            {result.meetsDeadline
-              ? " 이 금액을 계속 납입하면 목표일 이내 도달하는 계산입니다."
-              : " 이 가정으로는 목표일 이내 도달하지 못해요."}
+            {result.after.remaining === 0
+              ? " 일시금을 반영하면 오늘 기준으로 목표 금액에 도달하는 계산입니다."
+              : result.meetsDeadline
+                ? " 이 금액을 계속 납입하면 목표일 이내 도달하는 계산입니다."
+                : " 이 가정으로는 목표일 이내 도달하지 못해요."}
           </p>
           {result.funding ? (
             <>
@@ -152,9 +186,15 @@ export function GoalScenario({ goal, data }: { goal: Goal; data: Ledger }) {
         </div>
       )}
       <p className="ledger-note">
-        저장되지 않는 비교입니다. 수익률 0%, 오늘 이후 매월 납입을 가정하며 향후
-        출금·세금·수수료는 반영하지 않습니다. 적용하려면 월급 배분표 또는 목표의
-        월 적립액을 직접 수정해 주세요.
+        일시금은 현재 목표 잔액에 아직 포함되지 않은 돈만 입력하세요. 현재 목표
+        계좌 사이의 이동은 추가 자산이 아닙니다. 일시금을 마련할 수 있는지는
+        계산하지 않으며 월급의 미배정액 계산과도 별개입니다.
+      </p>
+      <p className="ledger-note">
+        저장되지 않는 비교입니다. 일시금은 오늘 반영, 수익률 0%, 오늘 이후 매월
+        납입을 가정하며 향후 출금·세금·수수료는 반영하지 않습니다. 월 적립액은
+        월급 배분표 또는 목표에서 수정하고, 일시금은 실제로 입금한 뒤 거래로
+        기록해 주세요.
       </p>
     </details>
   );

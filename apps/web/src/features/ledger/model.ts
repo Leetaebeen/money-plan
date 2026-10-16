@@ -290,6 +290,15 @@ export function goalMetrics(goal: Goal, data: Ledger, asOf = today()) {
     .map((a) => (a ? balance(a, data.entries, asOf) : null));
   if (!balances.length || balances.some((b) => b === null)) return null;
   const saved = balances.reduce<number>((sum, b) => sum + (b ?? 0), 0);
+  return projectGoal(goal, saved, monthly, asOf);
+}
+
+export function projectGoal(
+  goal: Goal,
+  saved: number,
+  monthly: number,
+  asOf: string,
+) {
   const remaining = Math.max(0, goal.target - saved);
   const date = new Date(`${asOf}T00:00:00Z`);
   const dates: string[] = [];
