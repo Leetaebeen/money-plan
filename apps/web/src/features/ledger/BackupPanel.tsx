@@ -18,6 +18,10 @@ export function BackupPanel({ snapshot, busy, run }: Props) {
   const [working, setWorking] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [verification, setVerification] = useState<{
+    revision: number;
+    comparison: ReturnType<typeof compareBackup>;
+  } | null>(null);
   const [restore, setRestore] = useState<{
     data: Ledger;
     revision: number;
@@ -52,9 +56,11 @@ export function BackupPanel({ snapshot, busy, run }: Props) {
       setWorking(false);
     }
   }
-  async function inspect() {
+  async function inspect(mode: "verify" | "restore") {
     setWorking(true);
     setError("");
+    setNotice("");
+    setVerification(null);
     setRestore(null);
     setConfirmed(false);
     try {
@@ -62,7 +68,12 @@ export function BackupPanel({ snapshot, busy, run }: Props) {
       if (file.size > 30_000_000)
         throw new Error("30MB 이하의 백업을 선택해 주세요.");
       const data = await decryptBackup(await file.text(), passphrase);
-      setRestore({ data, revision: snapshot.revision });
+      if (mode === "restore") setRestore({ data, revision: snapshot.revision });
+      else
+        setVerification({
+          revision: snapshot.revision,
+          comparison: compareBackup(snapshot.data, data),
+        });
       setPassphrase("");
       setConfirmPhrase("");
     } catch (e) {
@@ -119,10 +130,12 @@ export function BackupPanel({ snapshot, busy, run }: Props) {
             암호화 백업 저장
           </button>
           <hr />
-          <h3>백업에서 복원</h3>
+          <h3>저장한 백업 확인·복원</h3>
           <p className="ledger-note">
-            위 암호 칸에 기존 백업 암호를 입력하고 파일을 선택하세요. 미리보기
-            후 복원하면 현재 가계부를 교체합니다. 이전 계산기 이력은 유지됩니다.
+            위 암호 칸에 기존 백업 암호를 입력하고 파일을 선택하세요. 파일
+            검증은 암호로 정상적으로 열리는지와 현재 가계부와의 차이만
+            확인합니다. 복원은 미리보기 후 현재 가계부를 교체하며 이전 계산기
+            이력은 유지됩니다.
           </p>
           <label>
             백업 파일
@@ -132,6 +145,9 @@ export function BackupPanel({ snapshot, busy, run }: Props) {
               onChange={(e) => {
                 setFile(e.target.files?.[0] ?? null);
                 setRestore(null);
+                setVerification(null);
+                setNotice("");
+                setError("");
                 setConfirmed(false);
               }}
             />
@@ -139,10 +155,59 @@ export function BackupPanel({ snapshot, busy, run }: Props) {
           <button
             className="ledger-btn"
             disabled={!file || !passphrase}
-            onClick={() => void inspect()}
+            onClick={() => void inspect("verify")}
+          >
+            백업 파일 검증 (현재 데이터 유지)
+          </button>
+          <button
+            className="ledger-btn"
+            disabled={!file || !passphrase}
+            onClick={() => void inspect("restore")}
           >
             복원 내용 확인
           </button>
+          {verification && (
+            <div className="ledger-restore-preview" role="status">
+              <h4>백업 파일 검증 완료</h4>
+              <p>
+                암호화 파일을 열고 가계부 형식을 확인했습니다. 현재 데이터를
+                변경하지 않았습니다.
+              </p>
+              {verification.revision !== snapshot.revision ? (
+                <p className="ledger-note">
+                  검증 이후 현재 데이터가 바뀌었습니다. 암호를 입력하고 다시
+                  검증하면 최신 내용과 비교할 수 있습니다.
+                </p>
+              ) : verification.comparison.identical ? (
+                <p>현재 가계부의 계좌·거래·계획과 내용이 일치합니다.</p>
+              ) : (
+                <>
+                  <p>
+                    파일은 읽을 수 있지만 현재 가계부와 내용이 다릅니다. 다른
+                    시점의 백업일 수 있습니다.
+                  </p>
+                  <ul>
+                    {verification.comparison.rows
+                      .filter((row) => row.added || row.removed || row.changed)
+                      .map((row) => (
+                        <li key={row.key}>
+                          {row.label}: 현재 {row.current} · 파일 {row.incoming}{" "}
+                          · 현재에만 {row.removed} · 파일에만 {row.added} · 내용
+                          다름 {row.changed}
+                        </li>
+                      ))}
+                    {verification.comparison.planChanged && (
+                      <li>월급 배분 계획이 다릅니다.</li>
+                    )}
+                  </ul>
+                </>
+              )}
+              <p className="ledger-note">
+                이 검증은 선택한 파일에만 적용됩니다. 실제 금융기관 기록의
+                정확성이나 다른 기기의 복원 성공을 보장하지 않습니다.
+              </p>
+            </div>
+          )}
           {restore && (
             <div className="ledger-restore-preview">
               <h4>복원할 데이터</h4>
