@@ -63,6 +63,9 @@ jobs:
       - name: Build PWA
         run: npm run build:web
 
+      - name: Verify PWA installation and offline assets
+        run: npm run check:pwa
+
   build-pages:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: verify
