@@ -1,4 +1,5 @@
 import { today, validDate, type Ledger } from "./model.ts";
+import type { TransactionView } from "./transaction-search.ts";
 
 export function annualContributions(
   data: Ledger,
@@ -17,6 +18,14 @@ export function annualContributions(
   return data.accounts
     .filter((a) => a.role === "ISA" || a.role === "PENSION")
     .map((account) => {
+      const view = (from: string, to: string): TransactionView => ({
+        from,
+        to,
+        accountId: account.id,
+        kind: "TRANSFER",
+        unclassifiedOnly: false,
+        source: "accounts",
+      });
       const entries = data.entries.filter(
         (e) =>
           e.accountId === account.id &&
@@ -45,6 +54,12 @@ export function annualContributions(
           const month = `${year}-${String(index + 1).padStart(2, "0")}`;
           return {
             month,
+            view: view(
+              `${month}-01`,
+              month === end.slice(0, 7)
+                ? end
+                : `${month}-${new Date(Date.UTC(year, index + 1, 0)).getUTCDate()}`,
+            ),
             ...summarize(entries.filter((e) => e.date.startsWith(month))),
           };
         },
@@ -53,6 +68,7 @@ export function annualContributions(
         account,
         start,
         end,
+        view: view(start, end),
         partial: account.openingDate > start,
         ...summarize(entries),
         months,

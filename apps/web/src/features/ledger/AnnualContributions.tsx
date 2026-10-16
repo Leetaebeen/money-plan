@@ -1,8 +1,15 @@
 import { useMemo, useState } from "react";
 import { annualContributions } from "./annual-contributions";
 import { roles, today, won, type Ledger } from "./model";
+import type { TransactionView } from "./transaction-search";
 
-export function AnnualContributions({ data }: { data: Ledger }) {
+export function AnnualContributions({
+  data,
+  onTransactions,
+}: {
+  data: Ledger;
+  onTransactions?: (view: TransactionView) => void;
+}) {
   const asOf = today();
   const currentYear = Number(asOf.slice(0, 4));
   const [year, setYear] = useState(currentYear);
@@ -52,6 +59,14 @@ export function AnnualContributions({ data }: { data: Ledger }) {
               <dd>{won(row.net)}</dd>
             </div>
           </dl>
+          {onTransactions && (
+            <button
+              className="ledger-text-btn"
+              onClick={() => onTransactions(row.view)}
+            >
+              {year}년 이체 거래 {row.count}건 확인 →
+            </button>
+          )}
           {row.partial && (
             <p className="ledger-note">
               계좌 기록 기준일이 연초보다 늦어 이전 기간의 내역은 포함되지
@@ -84,7 +99,19 @@ export function AnnualContributions({ data }: { data: Ledger }) {
                 <tbody>
                   {row.months.map((m) => (
                     <tr key={m.month}>
-                      <th scope="row">{m.month}</th>
+                      <th scope="row">
+                        {onTransactions ? (
+                          <button
+                            className="ledger-text-btn"
+                            onClick={() => onTransactions(m.view)}
+                            aria-label={`${row.account.name} ${m.month} 이체 거래 ${m.count}건 확인`}
+                          >
+                            {m.month} →
+                          </button>
+                        ) : (
+                          m.month
+                        )}
+                      </th>
                       <td>{won(m.deposited)}</td>
                       <td>{won(m.withdrawn)}</td>
                       <td>{won(m.net)}</td>

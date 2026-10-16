@@ -4,6 +4,9 @@ export type TransactionView = {
   from: string;
   to: string;
   unclassifiedOnly: boolean;
+  accountId?: string;
+  kind?: EntryKind;
+  source?: "accounts";
 };
 
 export function unclassifiedCardIds(

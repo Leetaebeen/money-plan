@@ -3190,6 +3190,67 @@ test("annual ISA and pension totals count transfers only within the selected yea
   assert.deepEqual(data, before);
 });
 
+test("annual contribution links match account transfer totals and leap-month boundaries", () => {
+  const data = fixture();
+  data.accounts[1]!.role = "ISA";
+  data.accounts[1]!.openingDate = "2024-01-01";
+  data.entries = [
+    entry({
+      id: "deposit",
+      accountId: "save",
+      date: "2024-02-29",
+      kind: "TRANSFER",
+      amount: 100000,
+    }),
+    entry({
+      id: "withdraw",
+      accountId: "save",
+      date: "2024-03-14",
+      kind: "TRANSFER",
+      amount: -20000,
+    }),
+    entry({
+      id: "future",
+      accountId: "save",
+      date: "2024-03-15",
+      kind: "TRANSFER",
+      amount: 990000,
+    }),
+    entry({
+      id: "other",
+      accountId: "cash",
+      date: "2024-02-29",
+      kind: "TRANSFER",
+      amount: -100000,
+    }),
+    entry({
+      id: "gain",
+      accountId: "save",
+      date: "2024-02-29",
+      kind: "ADJUSTMENT",
+      amount: 50000,
+    }),
+  ];
+  const row = annualContributions(data, 2024, "2024-03-14")[0]!;
+  for (const summary of [row, ...row.months]) {
+    const matches = searchTransactions(data.entries, {
+      month: "",
+      query: "",
+      ...summary.view,
+      accountId: summary.view.accountId!,
+      kind: summary.view.kind!,
+    });
+    assert.equal(matches.length, summary.count);
+    assert.equal(
+      matches.reduce((sum, e) => sum + e.amount, 0),
+      summary.net,
+    );
+  }
+  assert.equal(row.months[1]!.view.to, "2024-02-29");
+  assert.equal(row.months[2]!.view.to, "2024-03-14");
+  assert.equal(row.net, 80000);
+});
+
 test("ending recurring schedules preserves previous payments and the inclusive last due date", () => {
   const data = fixture();
   data.schedules = [scheduled()];

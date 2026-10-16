@@ -16,7 +16,13 @@ import {
 } from "./model";
 import { Empty, type PanelProps } from "./shared";
 import { MaturityPlans } from "./MaturityPlans";
-export function Accounts({ data, busy, change }: PanelProps) {
+import type { TransactionView } from "./transaction-search";
+export function Accounts({
+  data,
+  busy,
+  change,
+  onTransactions,
+}: PanelProps & { onTransactions?: (view: TransactionView) => void }) {
   const [editing, setEditing] = useState<Account | null>(null);
   const [error, setError] = useState("");
   const [name, setName] = useState("");
@@ -244,7 +250,7 @@ export function Accounts({ data, busy, change }: PanelProps) {
           );
         })}
       </div>
-      <AnnualContributions data={data} />
+      <AnnualContributions data={data} onTransactions={onTransactions} />
     </section>
   );
 }

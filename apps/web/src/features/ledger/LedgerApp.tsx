@@ -379,7 +379,15 @@ export function LedgerApp() {
                 />
               )}
               {screen === "accounts" && (
-                <Accounts data={data} busy={busy} change={change} />
+                <Accounts
+                  data={data}
+                  busy={busy}
+                  change={change}
+                  onTransactions={(view) => {
+                    navigate("transactions");
+                    setTransactionView(view);
+                  }}
+                />
               )}
               {screen === "goals" && (
                 <Goals data={data} busy={busy} change={change} />
@@ -387,6 +395,7 @@ export function LedgerApp() {
               {screen === "transactions" && (
                 <Transactions
                   initialView={transactionView}
+                  onAccounts={() => navigate("accounts")}
                   onPlan={() => navigate("plan")}
                   data={data}
                   snapshot={snapshot}

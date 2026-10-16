@@ -28,6 +28,7 @@ import { undoImport } from "./store";
 type Props = PanelProps & {
   initialView?: TransactionView;
   onPlan?: () => void;
+  onAccounts?: () => void;
   snapshot: LedgerSnapshot;
   run: (
     action: () => Promise<LedgerSnapshot>,
@@ -42,6 +43,7 @@ export function Transactions({
   run,
   initialView,
   onPlan,
+  onAccounts,
 }: Props) {
   const [dateRange, setDateRange] = useState(initialView);
   const [showImport, setShowImport] = useState(false);
@@ -69,8 +71,10 @@ export function Transactions({
     [data.entries],
   );
   const [query, setQuery] = useState("");
-  const [kindFilter, setKindFilter] = useState<EntryKind | "">("");
-  const [filter, setFilter] = useState("");
+  const [kindFilter, setKindFilter] = useState<EntryKind | "">(
+    initialView?.kind ?? "",
+  );
+  const [filter, setFilter] = useState(initialView?.accountId ?? "");
   const [month, setMonth] = useState(initialView ? "" : today().slice(0, 7));
   const [page, setPage] = useState(0);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -553,12 +557,21 @@ export function Transactions({
       </p>
       {dateRange && (
         <p className="ledger-note" role="status">
-          급여 주기 조회: {dateRange.from} ~ {dateRange.to}. 조회 월을
-          선택하거나 필터를 초기화하면 기간 제한이 해제됩니다.{" "}
-          {onPlan && (
-            <button className="ledger-text-btn" onClick={onPlan}>
-              월급 예산으로 돌아가기 →
+          {dateRange.source === "accounts"
+            ? "자산 입출금 조회"
+            : "급여 주기 조회"}
+          : {dateRange.from} ~ {dateRange.to}. 조회 월을 선택하거나 필터를
+          초기화하면 기간 제한이 해제됩니다.{" "}
+          {dateRange.source === "accounts" && onAccounts ? (
+            <button className="ledger-text-btn" onClick={onAccounts}>
+              자산으로 돌아가기 →
             </button>
+          ) : (
+            onPlan && (
+              <button className="ledger-text-btn" onClick={onPlan}>
+                월급 예산으로 돌아가기 →
+              </button>
+            )
           )}
         </p>
       )}
