@@ -26,8 +26,7 @@ export function LeaveConfirmation({
     >
       <h2 id="leave-title">입력 중인 내용을 유지할까요?</h2>
       <p id="leave-description">
-        저장하지 않은 거래·계좌·목표 입력이 있습니다. 이동하면 이 입력은
-        사라집니다.
+        저장하지 않은 입력이 있습니다. 이동하면 이 입력은 사라집니다.
       </p>
       <div className="ledger-actions">
         <button

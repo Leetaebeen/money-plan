@@ -403,6 +403,7 @@ export function LedgerApp() {
               )}
               {screen === "plan" && (
                 <MonthlyPlan
+                  onDraftChange={setDraftDirty}
                   scheduleView={scheduleView}
                   data={data}
                   busy={busy}

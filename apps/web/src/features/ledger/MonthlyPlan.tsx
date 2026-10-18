@@ -1,6 +1,7 @@
 import type { ScheduleView } from "./schedules";
 import type { TransactionView } from "./transaction-search";
 import { useState } from "react";
+import { useDraftGuard } from "./useDraftGuard";
 import {
   isLiability,
   money,
@@ -33,9 +34,16 @@ export function MonthlyPlan({
   onAccounts,
   scheduleView,
   onTransactions,
+  onDraftChange,
 }: Props) {
   const [editing, setEditing] = useState(!data.monthlyPlan);
+  const [editSession, setEditSession] = useState(0);
   const [draft, setDraft] = useState(() => draftFrom(data));
+  useDraftGuard(
+    editing ? `monthly-plan-${editSession}` : null,
+    JSON.stringify(draft),
+    onDraftChange,
+  );
   const [error, setError] = useState("");
   const plan = data.monthlyPlan;
   const result = monthlyMetrics(data);
@@ -43,6 +51,7 @@ export function MonthlyPlan({
     savingRoles.includes(a.role),
   );
   function edit() {
+    setEditSession((value) => value + 1);
     setDraft(draftFrom(data));
     setEditing(true);
     setError("");
@@ -514,6 +523,7 @@ export function MonthlyPlan({
                   ledger.monthlyPlan = null;
                 }, "월급 계획을 삭제했어요.").then((ok) => {
                   if (ok) {
+                    setEditSession((value) => value + 1);
                     setEditing(true);
                     setDraft(draftFrom({ ...data, monthlyPlan: null }));
                   }
