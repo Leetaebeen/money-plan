@@ -1,6 +1,6 @@
 import type { ScheduleView } from "./schedules";
 import type { TransactionView } from "./transaction-search";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { App as LegacyPlanner } from "../../app/App";
 import { UpdatePrompt } from "../../components/UpdatePrompt";
 import { LeaveConfirmation } from "./LeaveConfirmation";
@@ -36,6 +36,7 @@ const tabs: { id: Screen; label: string; symbol: string }[] = [
   { id: "backup", label: "백업", symbol: "↓" },
 ];
 export function LedgerApp() {
+  const [refreshVersion, setRefreshVersion] = useState(0);
   const [snapshot, setSnapshot] = useState<LedgerSnapshot | null>(null);
   const [scheduleView, setScheduleView] = useState<ScheduleView | undefined>();
   const [transactionView, setTransactionView] = useState<
@@ -47,6 +48,7 @@ export function LedgerApp() {
   const [pendingLeave, setPendingLeave] = useState<{
     proceed: () => void;
     cancel?: () => void;
+    refresh?: boolean;
   } | null>(null);
   const lock = useRef(false);
   const [error, setError] = useState("");
@@ -120,6 +122,14 @@ export function LedgerApp() {
   async function change(fn: (data: Ledger) => void, message = "저장했어요.") {
     if (!snapshot) return false;
     return run(() => mutateLedger(snapshot.revision, fn), message);
+  }
+  async function refresh() {
+    if (await run(loadLedger, "최신 저장 내용을 불러왔어요.")) {
+      setTransactionView(undefined);
+      setScheduleView(undefined);
+      setRefreshVersion((version) => version + 1);
+      setDraftDirty(false);
+    }
   }
   function navigate(
     next: Screen,
@@ -218,7 +228,10 @@ export function LedgerApp() {
               className="ledger-text-btn"
               disabled={busy}
               onClick={() =>
-                void run(loadLedger, "최신 저장 내용을 불러왔어요.")
+                setPendingLeave({
+                  refresh: true,
+                  proceed: () => void refresh(),
+                })
               }
             >
               새로고침
@@ -241,7 +254,7 @@ export function LedgerApp() {
                 : "내 가계부를 불러오고 있어요…"}
             </div>
           ) : (
-            <>
+            <Fragment key={refreshVersion}>
               {screen === "home" && (
                 <>
                   <section className="ledger-hero">
@@ -450,7 +463,7 @@ export function LedgerApp() {
               {screen === "backup" && (
                 <BackupPanel snapshot={snapshot} busy={busy} run={run} />
               )}
-            </>
+            </Fragment>
           )}
         </main>
       </div>
@@ -479,6 +492,7 @@ export function LedgerApp() {
       />
       {pendingLeave && (
         <LeaveConfirmation
+          refresh={pendingLeave.refresh}
           cancel={() => {
             pendingLeave.cancel?.();
             setPendingLeave(null);
