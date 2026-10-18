@@ -3,6 +3,7 @@ import type { TransactionView } from "./transaction-search";
 import { useEffect, useRef, useState } from "react";
 import { App as LegacyPlanner } from "../../app/App";
 import { UpdatePrompt } from "../../components/UpdatePrompt";
+import { LeaveConfirmation } from "./LeaveConfirmation";
 import {
   netWorth,
   today,
@@ -42,11 +43,36 @@ export function LedgerApp() {
   >();
   const [screen, setScreen] = useState<Screen>("home");
   const [busy, setBusy] = useState(false);
+  const [draftDirty, setDraftDirty] = useState(false);
+  const [pendingLeave, setPendingLeave] = useState<{
+    proceed: () => void;
+    cancel?: () => void;
+  } | null>(null);
   const lock = useRef(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [legacy, setLegacy] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (!draftDirty && !busy) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [draftDirty, busy]);
+  function requestLeave(proceed: () => void, cancel?: () => void) {
+    if (lock.current) {
+      cancel?.();
+      return;
+    }
+    if (draftDirty) setPendingLeave({ proceed, cancel });
+    else proceed();
+  }
+  function openLegacy() {
+    requestLeave(() => setLegacy(true));
+  }
   useEffect(() => {
     let mounted = true;
     void loadLedger()
@@ -95,13 +121,20 @@ export function LedgerApp() {
     if (!snapshot) return false;
     return run(() => mutateLedger(snapshot.revision, fn), message);
   }
-  function navigate(next: Screen, view?: ScheduleView) {
-    setTransactionView(undefined);
-    setScheduleView(view);
-    setScreen(next);
-    setError("");
-    setNotice("");
-    window.scrollTo({ top: 0 });
+  function navigate(
+    next: Screen,
+    view?: ScheduleView,
+    transactions?: TransactionView,
+  ) {
+    if (next === screen) return;
+    requestLeave(() => {
+      setTransactionView(transactions);
+      setScheduleView(view);
+      setScreen(next);
+      setError("");
+      setNotice("");
+      window.scrollTo({ top: 0 });
+    });
   }
   if (legacy)
     return (
@@ -141,7 +174,14 @@ export function LedgerApp() {
         본문으로 건너뛰기
       </a>
       <header className="ledger-header">
-        <a className="ledger-brand" href={import.meta.env.BASE_URL}>
+        <a
+          className="ledger-brand"
+          href={import.meta.env.BASE_URL}
+          onClick={(event) => {
+            event.preventDefault();
+            navigate("home");
+          }}
+        >
           <span className="ledger-brand-icon">m.</span>머니플랜
         </a>
         <span className="ledger-local">
@@ -160,10 +200,7 @@ export function LedgerApp() {
               {tab.label}
             </button>
           ))}
-          <button
-            className="ledger-legacy-link"
-            onClick={() => setLegacy(true)}
-          >
+          <button className="ledger-legacy-link" onClick={openLegacy}>
             이전 월급 계산기 ↗
           </button>
         </aside>
@@ -358,7 +395,7 @@ export function LedgerApp() {
                   </p>
                   <button
                     className="ledger-text-btn ledger-mobile-legacy"
-                    onClick={() => setLegacy(true)}
+                    onClick={openLegacy}
                   >
                     이전 월급 계산기 열기 ↗
                   </button>
@@ -373,27 +410,32 @@ export function LedgerApp() {
                   onGoals={() => navigate("goals")}
                   onAccounts={() => navigate("accounts")}
                   onTransactions={(view) => {
-                    navigate("transactions");
-                    setTransactionView(view);
+                    navigate("transactions", undefined, view);
                   }}
                 />
               )}
               {screen === "accounts" && (
                 <Accounts
+                  onDraftChange={setDraftDirty}
                   data={data}
                   busy={busy}
                   change={change}
                   onTransactions={(view) => {
-                    navigate("transactions");
-                    setTransactionView(view);
+                    navigate("transactions", undefined, view);
                   }}
                 />
               )}
               {screen === "goals" && (
-                <Goals data={data} busy={busy} change={change} />
+                <Goals
+                  data={data}
+                  busy={busy}
+                  change={change}
+                  onDraftChange={setDraftDirty}
+                />
               )}
               {screen === "transactions" && (
                 <Transactions
+                  onDraftChange={setDraftDirty}
                   initialView={transactionView}
                   onAccounts={() => navigate("accounts")}
                   onPlan={() => navigate("plan")}
@@ -423,7 +465,30 @@ export function LedgerApp() {
           </button>
         ))}
       </nav>
-      <UpdatePrompt />
+      <UpdatePrompt
+        beforeUpdate={() =>
+          new Promise<boolean>((resolve) =>
+            requestLeave(
+              () => resolve(true),
+              () => resolve(false),
+            ),
+          )
+        }
+        blocked={busy}
+      />
+      {pendingLeave && (
+        <LeaveConfirmation
+          cancel={() => {
+            pendingLeave.cancel?.();
+            setPendingLeave(null);
+          }}
+          proceed={() => {
+            const action = pendingLeave.proceed;
+            setPendingLeave(null);
+            action();
+          }}
+        />
+      )}
     </div>
   );
 }

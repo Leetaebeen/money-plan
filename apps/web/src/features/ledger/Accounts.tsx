@@ -1,4 +1,5 @@
 import { WealthHistory } from "./WealthHistory";
+import { useDraftGuard } from "./useDraftGuard";
 import { AnnualContributions } from "./AnnualContributions";
 import { AccountReconciliation } from "./AccountReconciliation";
 import { useState } from "react";
@@ -22,6 +23,7 @@ export function Accounts({
   busy,
   change,
   onTransactions,
+  onDraftChange,
 }: PanelProps & { onTransactions?: (view: TransactionView) => void }) {
   const [editing, setEditing] = useState<Account | null>(null);
   const [error, setError] = useState("");
@@ -29,6 +31,11 @@ export function Accounts({
   const [role, setRole] = useState<AccountRole>("LIVING");
   const [opening, setOpening] = useState("");
   const [date, setDate] = useState(today());
+  useDraftGuard(
+    editing?.id ?? null,
+    JSON.stringify([name, role, opening, date]),
+    onDraftChange,
+  );
   const edit = (account: Account) => {
     setEditing(account);
     setName(account.name);

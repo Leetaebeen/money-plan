@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useDraftGuard } from "./useDraftGuard";
 import {
   isLiability,
   goalMetrics,
@@ -84,7 +85,7 @@ export function GoalCard({
     </>
   );
 }
-export function Goals({ data, busy, change }: PanelProps) {
+export function Goals({ data, busy, change, onDraftChange }: PanelProps) {
   const [editing, setEditing] = useState<Goal | null>(null);
   const [name, setName] = useState("");
   const [target, setTarget] = useState("");
@@ -93,6 +94,11 @@ export function Goals({ data, busy, change }: PanelProps) {
   const [day, setDay] = useState("25");
   const [ids, setIds] = useState<string[]>([]);
   const [error, setError] = useState("");
+  useDraftGuard(
+    editing?.id ?? null,
+    JSON.stringify([name, target, monthly, deadline, day, ids]),
+    onDraftChange,
+  );
   function edit(goal: Goal) {
     setEditing(goal);
     setName(goal.name);

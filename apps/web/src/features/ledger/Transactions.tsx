@@ -1,3 +1,4 @@
+import { useDraftGuard } from "./useDraftGuard";
 import {
   changeCardBudgets,
   changeTransactionCategories,
@@ -44,6 +45,7 @@ export function Transactions({
   initialView,
   onPlan,
   onAccounts,
+  onDraftChange,
 }: Props) {
   const [dateRange, setDateRange] = useState(initialView);
   const [showImport, setShowImport] = useState(false);
@@ -56,6 +58,20 @@ export function Transactions({
   const [value, setValue] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("미분류");
+  useDraftGuard(
+    editing === "new" ? "new" : (editing?.id ?? null),
+    JSON.stringify([
+      account,
+      other,
+      cardBudget,
+      kind,
+      date,
+      value,
+      description,
+      category,
+    ]),
+    onDraftChange,
+  );
   const [error, setError] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [duplicatesOnly, setDuplicatesOnly] = useState(false);

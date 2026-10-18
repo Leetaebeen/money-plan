@@ -2,6 +2,20 @@ import {
   changeCardBudgets,
   changeTransactionCategories,
 } from "../src/features/ledger/transaction-edit.ts";
+import { updateDraftState } from "../src/features/ledger/draft-state.ts";
+
+test("draft guard detects edits and clears when values are reverted or editor closes", () => {
+  const initial = updateDraftState(null, "entry-a", "initial");
+  assert.equal(initial!.dirty, false);
+  const changed = updateDraftState(initial, "entry-a", "changed");
+  assert.equal(changed!.dirty, true);
+  assert.equal(initial!.dirty, false);
+  assert.equal(updateDraftState(changed, "entry-a", "initial")!.dirty, false);
+  assert.equal(updateDraftState(changed, null, "changed"), null);
+  const reopened = updateDraftState(null, "entry-a", "saved");
+  assert.equal(reopened!.dirty, false);
+  assert.equal(updateDraftState(changed, "entry-b", "other")!.dirty, false);
+});
 import {
   readStorageProtection,
   requestStorageProtection,

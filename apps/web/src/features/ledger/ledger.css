@@ -974,6 +974,9 @@ body:has(.ledger) {
   }
 }
 
+.ledger-leave-dialog { max-width: min(440px, calc(100vw - 32px)); box-sizing: border-box; border: 1px solid var(--lg-line); border-radius: 16px; padding: 24px; }
+.ledger-leave-dialog::backdrop { background: rgb(0 0 0 / 45%); }
+.ledger-leave-dialog .ledger-actions { flex-wrap: wrap; }
 .ledger-history-scroll { overflow-x: auto; }
 .ledger-history-table { width: 100%; border-collapse: collapse; white-space: nowrap; }
 .ledger-history-table th, .ledger-history-table td { padding: 12px; border-bottom: 1px solid var(--lg-line); text-align: right; }

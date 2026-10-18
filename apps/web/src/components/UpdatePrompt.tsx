@@ -1,6 +1,12 @@
 import { useRegisterSW } from "virtual:pwa-register/react";
 
-export function UpdatePrompt() {
+export function UpdatePrompt({
+  beforeUpdate,
+  blocked = false,
+}: {
+  beforeUpdate?: () => boolean | Promise<boolean>;
+  blocked?: boolean;
+} = {}) {
   const {
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
@@ -9,14 +15,29 @@ export function UpdatePrompt() {
   if (!needRefresh) return null;
 
   return (
-    <aside className="update-toast" role="region" aria-labelledby="update-title">
+    <aside
+      className="update-toast"
+      role="region"
+      aria-labelledby="update-title"
+    >
       <div>
         <strong id="update-title">새 버전이 준비됐어요.</strong>
         <p>입력 중인 내용을 확인한 뒤 업데이트할 수 있어요.</p>
       </div>
       <div className="update-toast__actions">
-        <button type="button" onClick={() => void updateServiceWorker(true)}>업데이트</button>
-        <button type="button" onClick={() => setNeedRefresh(false)}>나중에</button>
+        <button
+          type="button"
+          disabled={blocked}
+          onClick={async () => {
+            if (!beforeUpdate || (await beforeUpdate()))
+              void updateServiceWorker(true);
+          }}
+        >
+          업데이트
+        </button>
+        <button type="button" onClick={() => setNeedRefresh(false)}>
+          나중에
+        </button>
       </div>
     </aside>
   );

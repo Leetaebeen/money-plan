@@ -1,5 +1,6 @@
 import type { Ledger } from "./model";
 export interface PanelProps {
+  onDraftChange?: (dirty: boolean) => void;
   data: Ledger;
   busy: boolean;
   change: (fn: (data: Ledger) => void, message?: string) => Promise<boolean>;
