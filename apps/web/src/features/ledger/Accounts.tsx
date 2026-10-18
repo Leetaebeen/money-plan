@@ -82,7 +82,7 @@ export function Accounts({
         </div>
         <button
           className="ledger-btn"
-          disabled={busy}
+          disabled={busy || editing !== null}
           onClick={() =>
             edit({
               id: crypto.randomUUID(),
@@ -98,6 +98,9 @@ export function Accounts({
       </div>
       {editing && (
         <form className="ledger-panel ledger-form" onSubmit={save}>
+          <p className="ledger-note">
+            다른 계좌를 편집하려면 현재 입력을 저장하거나 취소하세요.
+          </p>
           <h3>
             {data.accounts.some((a) => a.id === editing.id)
               ? "계좌 설정"
@@ -193,7 +196,7 @@ export function Accounts({
                 <button
                   className="ledger-text-btn"
                   onClick={() => edit(account)}
-                  disabled={busy}
+                  disabled={busy || editing !== null}
                   aria-label={`${account.name} 설정`}
                 >
                   설정

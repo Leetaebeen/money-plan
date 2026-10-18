@@ -299,7 +299,7 @@ export function Transactions({
         <div className="ledger-actions">
           <button
             className="ledger-btn"
-            disabled={busy || !data.accounts.length}
+            disabled={busy || editing !== null || !data.accounts.length}
             onClick={() => edit()}
           >
             + 직접 입력
@@ -323,6 +323,9 @@ export function Transactions({
       {showImport && <ImportPanel snapshot={snapshot} busy={busy} run={run} />}
       {editing && (
         <form className="ledger-panel ledger-form" onSubmit={save}>
+          <p className="ledger-note">
+            다른 거래를 편집하려면 현재 입력을 저장하거나 취소하세요.
+          </p>
           <h3>{editing === "new" ? "거래 입력" : "거래 수정"}</h3>
           <fieldset disabled={busy}>
             <div className="ledger-fields">
@@ -822,7 +825,7 @@ export function Transactions({
                 <div className="ledger-actions">
                   <button
                     className="ledger-text-btn"
-                    disabled={busy}
+                    disabled={busy || editing !== null}
                     onClick={() => {
                       edit(entry);
                       if (entry.pairId) {

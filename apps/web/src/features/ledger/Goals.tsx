@@ -144,7 +144,7 @@ export function Goals({ data, busy, change, onDraftChange }: PanelProps) {
         </div>
         <button
           className="ledger-btn"
-          disabled={busy || !data.accounts.length}
+          disabled={busy || editing !== null || !data.accounts.length}
           onClick={() =>
             edit({
               id: crypto.randomUUID(),
@@ -162,6 +162,9 @@ export function Goals({ data, busy, change, onDraftChange }: PanelProps) {
       </div>
       {editing && (
         <form onSubmit={save} className="ledger-panel ledger-form">
+          <p className="ledger-note">
+            다른 목표를 편집하려면 현재 입력을 저장하거나 취소하세요.
+          </p>
           <h3>목표 설정</h3>
           <fieldset disabled={busy}>
             <div className="ledger-fields">
@@ -290,7 +293,7 @@ export function Goals({ data, busy, change, onDraftChange }: PanelProps) {
             <div className="ledger-actions">
               <button
                 className="ledger-text-btn"
-                disabled={busy}
+                disabled={busy || editing !== null}
                 onClick={() => edit(goal)}
               >
                 목표 수정
