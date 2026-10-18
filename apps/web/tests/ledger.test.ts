@@ -2,6 +2,40 @@ import {
   changeCardBudgets,
   changeTransactionCategories,
 } from "../src/features/ledger/transaction-edit.ts";
+import {
+  readStorageProtection,
+  requestStorageProtection,
+} from "../src/features/ledger/storage-protection.ts";
+
+test("storage protection distinguishes unsupported, denied, granted and failed requests", async () => {
+  assert.equal(await readStorageProtection(), "unsupported");
+  assert.equal(await requestStorageProtection({}), "unsupported");
+  let requests = 0;
+  const storage = {
+    persisted: async () => false,
+    persist: async () => {
+      requests++;
+      return false;
+    },
+  };
+  assert.equal(await readStorageProtection(storage), "standard");
+  assert.equal(requests, 0);
+  assert.equal(await requestStorageProtection(storage), "standard");
+  assert.equal(requests, 1);
+  assert.equal(
+    await readStorageProtection({ persisted: async () => true }),
+    "protected",
+  );
+  assert.equal(
+    await requestStorageProtection({ persist: async () => true }),
+    "protected",
+  );
+  const failed = async () => {
+    throw new Error("unavailable");
+  };
+  assert.equal(await readStorageProtection({ persisted: failed }), "error");
+  assert.equal(await requestStorageProtection({ persist: failed }), "error");
+});
 import { goalHistory } from "../src/features/ledger/goal-history.ts";
 import { annualContributions } from "../src/features/ledger/annual-contributions.ts";
 import {

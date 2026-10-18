@@ -4,6 +4,7 @@ import { decryptBackup, encryptBackup } from "./backup";
 import { today, type Ledger, type LedgerSnapshot } from "./model";
 import { loadLedgerAtRevision, restoreLedger } from "./store";
 import { download } from "./shared";
+import { DeviceStorage } from "./DeviceStorage";
 interface Props {
   snapshot: LedgerSnapshot;
   busy: boolean;
@@ -94,6 +95,7 @@ export function BackupPanel({ snapshot, busy, run }: Props) {
           <p>기기 안의 가계부를 암호화된 파일로 보관하고 옮겨요.</p>
         </div>
       </div>
+      <DeviceStorage />
       <div className="ledger-panel ledger-form">
         <fieldset disabled={busy || working}>
           <h3>암호화 백업</h3>
