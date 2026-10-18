@@ -72,6 +72,21 @@ export async function loadLedger(): Promise<LedgerSnapshot> {
     return read();
   });
 }
+// Read an existing snapshot without seeding or modifying any tables.
+// Backup operations must not silently use a stale screen from another tab.
+export async function loadLedgerAtRevision(
+  revision: number,
+): Promise<LedgerSnapshot> {
+  return db.transaction("r", tables(), async () => {
+    const current = await read();
+    if (current.revision !== revision)
+      throw new Error(
+        "다른 화면에서 데이터가 변경됐어요. 새로고침 후 백업을 다시 확인해 주세요.",
+      );
+    validateLedger(current.data);
+    return current;
+  });
+}
 async function sync<T extends { id: string }>(
   table: Table<T, string>,
   before: T[],

@@ -81,6 +81,7 @@ import { db, deleteAllLocalData } from "../src/persistence/db.ts";
 import {
   commitImport,
   loadLedger,
+  loadLedgerAtRevision,
   mutateLedger,
   restoreLedger,
   undoImport,
@@ -1486,6 +1487,63 @@ test("concurrent writes and restore use revisions, and invalid restores preserve
   assert.equal(empty.data.accounts.length, 0);
   assert.equal(empty.data.goals.length, 0);
 });
+test("backup snapshot reads reject stale tabs and do not change stored data", async () => {
+  const initial = await loadLedger();
+  const first = await restoreLedger(initial.revision, fixture());
+  const checked = await loadLedgerAtRevision(first.revision);
+  assert.deepEqual(checked, first);
+  checked.data.accounts[0]!.name = "only in memory";
+  assert.deepEqual(await loadLedger(), first);
+  const changed = await mutateLedger(first.revision, (data) => {
+    data.entries.push(entry());
+  });
+  await assert.rejects(loadLedgerAtRevision(first.revision), /새로고침/);
+  assert.deepEqual(await loadLedgerAtRevision(changed.revision), changed);
+  await deleteAllLocalData();
+  await assert.rejects(loadLedgerAtRevision(changed.revision), /새로고침/);
+  const cleared = await loadLedger();
+  assert.deepEqual(await loadLedgerAtRevision(cleared.revision), cleared);
+  assert.equal(cleared.data.accounts.length, 0);
+});
+
+test("saved ledger survives reopening and encrypted restore preserves plans and payment links", async () => {
+  const data = fixture();
+  data.monthlyPlan = monthlyPlan();
+  data.schedules = [scheduled()];
+  data.maturities = [maturity()];
+  captureMonthlyPlan(data, "2026-01-25");
+  recordScheduledPayment(
+    data,
+    "bill",
+    "2026-01-31",
+    { date: "2026-01-31" },
+    "2026-02-14",
+  );
+  const initial = await loadLedger();
+  const saved = await restoreLedger(initial.revision, data);
+  db.close();
+  await db.open();
+  const reopened = await loadLedgerAtRevision(saved.revision);
+  assert.deepEqual(reopened, saved);
+  const raw = await encryptBackup(reopened.data, "synthetic-reopen-test");
+  await deleteAllLocalData();
+  const empty = await loadLedger();
+  const restored = await restoreLedger(
+    empty.revision,
+    await decryptBackup(raw, "synthetic-reopen-test"),
+  );
+  db.close();
+  await db.open();
+  assert.deepEqual(
+    (await loadLedgerAtRevision(restored.revision)).data,
+    saved.data,
+  );
+  assert.deepEqual(
+    restored.data.schedules[0]!.payments,
+    saved.data.schedules[0]!.payments,
+  );
+});
+
 test("encrypted backup roundtrips every ledger field and rejects wrong passwords or tampering", async () => {
   const data = fixture();
   const passphrase = "example-only-test-phrase";

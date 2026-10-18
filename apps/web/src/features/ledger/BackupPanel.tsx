@@ -2,7 +2,7 @@ import { compareBackup } from "./backup-comparison";
 import { useEffect, useMemo, useState } from "react";
 import { decryptBackup, encryptBackup } from "./backup";
 import { today, type Ledger, type LedgerSnapshot } from "./model";
-import { restoreLedger } from "./store";
+import { loadLedgerAtRevision, restoreLedger } from "./store";
 import { download } from "./shared";
 interface Props {
   snapshot: LedgerSnapshot;
@@ -43,7 +43,9 @@ export function BackupPanel({ snapshot, busy, run }: Props) {
     try {
       if (passphrase !== confirmPhrase)
         throw new Error("두 암호가 일치하지 않아요.");
-      const content = await encryptBackup(snapshot.data, passphrase);
+      const current = await loadLedgerAtRevision(snapshot.revision);
+      const content = await encryptBackup(current.data, passphrase);
+      await loadLedgerAtRevision(current.revision);
       download(content, `money-plan-${today()}.moneyplan`);
       setNotice(
         "백업 파일 저장을 요청했어요. 다운로드 폴더에 파일이 있는지 확인해 주세요.",
@@ -67,12 +69,14 @@ export function BackupPanel({ snapshot, busy, run }: Props) {
       if (!file) throw new Error("복원할 파일을 선택해 주세요.");
       if (file.size > 30_000_000)
         throw new Error("30MB 이하의 백업을 선택해 주세요.");
+      const current = await loadLedgerAtRevision(snapshot.revision);
       const data = await decryptBackup(await file.text(), passphrase);
-      if (mode === "restore") setRestore({ data, revision: snapshot.revision });
+      await loadLedgerAtRevision(current.revision);
+      if (mode === "restore") setRestore({ data, revision: current.revision });
       else
         setVerification({
-          revision: snapshot.revision,
-          comparison: compareBackup(snapshot.data, data),
+          revision: current.revision,
+          comparison: compareBackup(current.data, data),
         });
       setPassphrase("");
       setConfirmPhrase("");
