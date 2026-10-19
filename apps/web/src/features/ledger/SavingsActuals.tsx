@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { MonthlyCashflow } from "./MonthlyCashflow";
 import { savingsActuals } from "./savings-actuals";
 import { today, won } from "./model";
 import { captureMonthlyPlan } from "./plan-history";
@@ -127,6 +128,7 @@ export function SavingsActuals({ data, busy, change }: PanelProps) {
           </div>
         </dl>
       )}
+      <MonthlyCashflow entries={data.entries} month={month} />
       <h4>조회 월의 기록된 수입·소비</h4>
       <dl className="ledger-budget-breakdown">
         <div>

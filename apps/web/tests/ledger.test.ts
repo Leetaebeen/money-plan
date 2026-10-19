@@ -3,6 +3,51 @@ import {
   changeTransactionCategories,
 } from "../src/features/ledger/transaction-edit.ts";
 import { updateDraftState } from "../src/features/ledger/draft-state.ts";
+import { monthlyCashflow } from "../src/features/ledger/monthly-cashflow.ts";
+
+test("monthly cashflow separates refunds, excludes transfers and future entries, and preserves empty months", () => {
+  const entries = [
+    entry({
+      id: "salary",
+      date: "2026-01-25",
+      kind: "INCOME",
+      amount: 3000000,
+    }),
+    entry({ id: "spend", date: "2026-01-31", amount: -500000 }),
+    entry({ id: "refund", date: "2026-02-02", kind: "REFUND", amount: 600000 }),
+    entry({
+      id: "transfer",
+      date: "2026-02-01",
+      kind: "TRANSFER",
+      amount: 900000,
+    }),
+    entry({
+      id: "adjustment",
+      date: "2026-02-01",
+      kind: "ADJUSTMENT",
+      amount: 800000,
+    }),
+    entry({ id: "future", date: "2026-02-20", kind: "INCOME", amount: 999999 }),
+  ];
+  const before = structuredClone(entries);
+  const rows = monthlyCashflow(entries, "2026-02", "2026-02-10");
+  assert.equal(rows.length, 6);
+  assert.equal(rows[0]!.month, "2025-09");
+  assert.equal(rows[0]!.count, 0);
+  assert.equal(rows[4]!.difference, 2500000);
+  assert.equal(rows[5]!.netSpent, -600000);
+  assert.equal(rows[5]!.difference, 600000);
+  assert.equal(rows[5]!.count, 1);
+  assert.equal(rows[5]!.end, "2026-02-10");
+  assert.equal(
+    monthlyCashflow([], "2024-02", "2026-02-10").at(-1)!.end,
+    "2024-02-29",
+  );
+  assert.equal(monthlyCashflow([], "2000-01", "2026-02-10").length, 1);
+  assert.throws(() => monthlyCashflow([], "2026-03", "2026-02-10"));
+  assert.throws(() => monthlyCashflow([], "2026-13", "2026-02-10"));
+  assert.deepEqual(entries, before);
+});
 
 test("draft guard detects edits and clears when values are reverted or editor closes", () => {
   const initial = updateDraftState(null, "entry-a", "initial");
