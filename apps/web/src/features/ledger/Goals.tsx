@@ -163,7 +163,7 @@ export function Goals({ data, busy, change, onDraftChange }: PanelProps) {
       {editing && (
         <form onSubmit={save} className="ledger-panel ledger-form">
           <p className="ledger-note">
-            다른 목표를 편집하려면 현재 입력을 저장하거나 취소하세요.
+            목표를 추가·편집·삭제하려면 현재 입력을 저장하거나 취소하세요.
           </p>
           <h3>목표 설정</h3>
           <fieldset disabled={busy}>
@@ -300,7 +300,7 @@ export function Goals({ data, busy, change, onDraftChange }: PanelProps) {
               </button>
               <button
                 className="ledger-text-btn"
-                disabled={busy}
+                disabled={busy || editing !== null}
                 onClick={() => {
                   if (
                     window.confirm(

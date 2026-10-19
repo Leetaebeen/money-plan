@@ -299,14 +299,16 @@ export function Transactions({
         <div className="ledger-actions">
           <button
             className="ledger-btn"
-            disabled={busy || editing !== null || !data.accounts.length}
+            disabled={
+              busy || editing !== null || showImport || !data.accounts.length
+            }
             onClick={() => edit()}
           >
             + 직접 입력
           </button>
           <button
             className="ledger-btn ledger-primary"
-            disabled={busy || !data.accounts.length}
+            disabled={busy || editing !== null || !data.accounts.length}
             onClick={() => setShowImport((s) => !s)}
           >
             {showImport ? "가져오기 닫기" : "파일 가져오기"}
@@ -320,11 +322,19 @@ export function Transactions({
         입력하세요. 기존 결제대금을 지출로 기록했다면 계좌 이동으로 수정해야
         중복 소비가 사라집니다.
       </p>
-      {showImport && <ImportPanel snapshot={snapshot} busy={busy} run={run} />}
+      {showImport && (
+        <>
+          <p className="ledger-note">
+            거래를 직접 입력하거나 수정하려면 가져오기를 먼저 닫으세요.
+          </p>
+          <ImportPanel snapshot={snapshot} busy={busy} run={run} />
+        </>
+      )}
       {editing && (
         <form className="ledger-panel ledger-form" onSubmit={save}>
           <p className="ledger-note">
-            다른 거래를 편집하려면 현재 입력을 저장하거나 취소하세요.
+            다른 거래 편집·삭제·일괄 변경·파일 가져오기를 하려면 현재 입력을
+            저장하거나 취소하세요.
           </p>
           <h3>{editing === "new" ? "거래 입력" : "거래 수정"}</h3>
           <fieldset disabled={busy}>
@@ -673,7 +683,7 @@ export function Transactions({
             }
           }}
         >
-          <fieldset disabled={busy}>
+          <fieldset disabled={busy || editing !== null}>
             <h3>선택한 거래 분류</h3>
             <p className="ledger-note">
               현재 페이지의 지출·환불만 선택할 수 있습니다. 검색·필터·페이지를
@@ -825,7 +835,7 @@ export function Transactions({
                 <div className="ledger-actions">
                   <button
                     className="ledger-text-btn"
-                    disabled={busy || editing !== null}
+                    disabled={busy || editing !== null || showImport}
                     onClick={() => {
                       edit(entry);
                       if (entry.pairId) {
@@ -847,7 +857,7 @@ export function Transactions({
                   </button>
                   <button
                     className="ledger-text-btn"
-                    disabled={busy}
+                    disabled={busy || editing !== null}
                     onClick={() => {
                       if (
                         window.confirm(
@@ -929,7 +939,7 @@ export function Transactions({
                 </span>
                 <button
                   className="ledger-btn"
-                  disabled={busy}
+                  disabled={busy || editing !== null}
                   onClick={() => {
                     if (
                       window.confirm(

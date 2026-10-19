@@ -99,7 +99,7 @@ export function Accounts({
       {editing && (
         <form className="ledger-panel ledger-form" onSubmit={save}>
           <p className="ledger-note">
-            다른 계좌를 편집하려면 현재 입력을 저장하거나 취소하세요.
+            계좌를 추가·편집·삭제하려면 현재 입력을 저장하거나 취소하세요.
           </p>
           <h3>
             {data.accounts.some((a) => a.id === editing.id)
@@ -243,7 +243,7 @@ export function Accounts({
                 !data.batches.some((b) => b.accountId === account.id) && (
                   <button
                     className="ledger-text-btn"
-                    disabled={busy}
+                    disabled={busy || editing !== null}
                     onClick={() => {
                       if (window.confirm(`${account.name} 계좌를 삭제할까요?`))
                         void change((next) => {
