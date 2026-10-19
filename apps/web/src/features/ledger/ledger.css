@@ -876,7 +876,6 @@ body:has(.ledger) {
   padding: 10px;
   border: 1px solid var(--lg-line);
   border-radius: 8px;
-  font: inherit;
 }
 .ledger-salary .ledger-panel {
   margin-bottom: 22px;
