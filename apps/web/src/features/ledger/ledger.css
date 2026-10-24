@@ -144,11 +144,6 @@ body:has(.ledger) {
   width: 24px;
   text-align: center;
 }
-.ledger-desktop-nav .ledger-legacy-link {
-  margin-top: 36px;
-  padding: 14px 8px;
-  font-size: 12px;
-}
 .ledger-main {
   min-width: 0;
 }
@@ -674,20 +669,7 @@ body:has(.ledger) {
   border-top: 1px solid var(--lg-line);
   padding-top: 20px;
 }
-.ledger-return {
-  padding: 12px 20px;
-  background: #e7efe6;
-}
-.ledger-return button {
-  border: 0;
-  background: transparent;
-  color: #176950;
-  font: inherit;
-  cursor: pointer;
-  min-height: 44px;
-}
-.ledger-mobile-nav,
-.ledger-mobile-legacy {
+.ledger-mobile-nav {
   display: none;
 }
 @media (max-width: 900px) {
@@ -833,10 +815,6 @@ body:has(.ledger) {
   .ledger-mobile-nav button[aria-current="page"] {
     color: var(--lg-green);
     font-weight: 800;
-  }
-  .ledger-mobile-legacy {
-    display: inline-block;
-    margin-top: 10px;
   }
   .ledger-entry {
     align-items: flex-start;

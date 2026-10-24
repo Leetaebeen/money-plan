@@ -101,9 +101,7 @@ export function BackupPanel({ snapshot, busy, run }: Props) {
           <h3>암호화 백업</h3>
           <p className="ledger-note">
             계좌·거래·목표·월급 배분·월별 계획 이력·납부 일정·만기 계획·가져오기
-            이력을 포함합니다. 이전 월급 계산기의 계획 이력은 해당 계산기에서
-            별도로 내보낼 수 있어요. 이 암호는 저장하지 않으며 잊으면 복구할 수
-            없습니다.
+            이력을 포함합니다. 이 암호는 저장하지 않으며 잊으면 복구할 수 없습니다.
           </p>
           <div className="ledger-fields">
             <label>

@@ -1,67 +1,7 @@
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
-import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
-  build: {
-    rollupOptions: {
-      input: {
-        app: "index.html",
-        calculator: "calculator/index.html",
-      },
-    },
-  },
-  plugins: [
-    react(),
-    VitePWA({
-      registerType: "prompt",
-      injectRegister: false,
-      includeAssets: ["money-plan-icon.svg", "apple-touch-icon.png"],
-      manifest: {
-        name: "머니플랜",
-        short_name: "머니플랜",
-        description:
-          "계좌와 거래를 정리하고 목표 금액까지의 저축을 계획하는 개인 가계부",
-        theme_color: "#173f36",
-        background_color: "#f5f3ed",
-        display: "standalone",
-        id: "./",
-        start_url: "./",
-        scope: "./",
-        lang: "ko-KR",
-        categories: ["finance", "productivity"],
-        icons: [
-          {
-            src: "money-plan-icon.svg",
-            sizes: "any",
-            type: "image/svg+xml",
-            purpose: "any",
-          },
-          {
-            src: "money-plan-192.png",
-            sizes: "192x192",
-            type: "image/png",
-            purpose: "any",
-          },
-          {
-            src: "money-plan-512.png",
-            sizes: "512x512",
-            type: "image/png",
-            purpose: "any",
-          },
-          {
-            src: "money-plan-maskable-512.png",
-            sizes: "512x512",
-            type: "image/png",
-            purpose: "maskable",
-          },
-        ],
-      },
-      workbox: {
-        cleanupOutdatedCaches: true,
-        navigateFallback: "index.html",
-        globPatterns: ["**/*.{js,css,html,json,svg,png,webmanifest}"],
-      },
-    }),
-  ],
+  build: { rollupOptions: { input: { app: "index.html" } } },
+  plugins: [react()],
 });

@@ -1,8 +1,6 @@
 import type { ScheduleView } from "./schedules";
 import type { TransactionView } from "./transaction-search";
 import { Fragment, useEffect, useRef, useState } from "react";
-import { App as LegacyPlanner } from "../../app/App";
-import { UpdatePrompt } from "../../components/UpdatePrompt";
 import { LeaveConfirmation } from "./LeaveConfirmation";
 import {
   netWorth,
@@ -53,7 +51,6 @@ export function LedgerApp() {
   const lock = useRef(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [legacy, setLegacy] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     if (!draftDirty && !busy) return;
@@ -71,9 +68,6 @@ export function LedgerApp() {
     }
     if (draftDirty) setPendingLeave({ proceed, cancel });
     else proceed();
-  }
-  function openLegacy() {
-    requestLeave(() => setLegacy(true));
   }
   useEffect(() => {
     let mounted = true;
@@ -146,22 +140,6 @@ export function LedgerApp() {
       window.scrollTo({ top: 0 });
     });
   }
-  if (legacy)
-    return (
-      <>
-        <div className="ledger-return">
-          <button
-            onClick={() => {
-              setLegacy(false);
-              void run(loadLedger, "가계부를 불러왔어요.");
-            }}
-          >
-            ← 내 가계부로 돌아가기
-          </button>
-        </div>
-        <LegacyPlanner />
-      </>
-    );
   const data = snapshot?.data;
   const monthly = data ? monthlyMetrics(data) : null;
   const wealth = data ? netWorth(data) : null;
@@ -210,9 +188,6 @@ export function LedgerApp() {
               {tab.label}
             </button>
           ))}
-          <button className="ledger-legacy-link" onClick={openLegacy}>
-            이전 월급 계산기 ↗
-          </button>
         </aside>
         <main id="ledger-main" className="ledger-main">
           <div className="ledger-page-heading">
@@ -406,12 +381,6 @@ export function LedgerApp() {
                     않은 부채는 집계에 포함되지 않아요. 계좌별 기준일과 최근
                     거래일은 자산에서 확인할 수 있습니다.
                   </p>
-                  <button
-                    className="ledger-text-btn ledger-mobile-legacy"
-                    onClick={openLegacy}
-                  >
-                    이전 월급 계산기 열기 ↗
-                  </button>
                 </>
               )}
               {screen === "plan" && (
@@ -479,17 +448,6 @@ export function LedgerApp() {
           </button>
         ))}
       </nav>
-      <UpdatePrompt
-        beforeUpdate={() =>
-          new Promise<boolean>((resolve) =>
-            requestLeave(
-              () => resolve(true),
-              () => resolve(false),
-            ),
-          )
-        }
-        blocked={busy}
-      />
       {pendingLeave && (
         <LeaveConfirmation
           refresh={pendingLeave.refresh}
