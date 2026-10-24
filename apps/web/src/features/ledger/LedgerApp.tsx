@@ -15,6 +15,8 @@ import { Goals, GoalCard } from "./Goals";
 import { Transactions } from "./Transactions";
 import { BackupPanel } from "./BackupPanel";
 import { MonthlyPlan } from "./MonthlyPlan";
+import { PurchaseCheck } from "./PurchaseCheck";
+import { IncomeRunway } from "./IncomeRunway";
 import { UpcomingPayments } from "./UpcomingPayments";
 import { monthlyMetrics } from "./monthly-plan";
 import "./ledger.css";
@@ -350,6 +352,11 @@ export function LedgerApp() {
                       </button>
                     </section>
                   )}
+                  <div className="ledger-section-title"><h2>돈을 쓰기 전, 내 미래 확인</h2></div>
+                  <div className="ledger-stack">
+                    <PurchaseCheck data={data} />
+                    <IncomeRunway data={data} />
+                  </div>
                   <section className="ledger-bottom-grid">
                     <article className="ledger-panel">
                       <span className="ledger-eyebrow">거래 확인</span>
