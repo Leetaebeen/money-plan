@@ -74,6 +74,12 @@ jobs:
       - name: Verify web assets and retired features
         run: npm run check:web
 
+      - name: Build Pages before merge
+        run: npm run build:pages
+
+      - name: Verify Pages paths and security policy before merge
+        run: npm run check:pages
+
   build-pages:
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     needs: verify
