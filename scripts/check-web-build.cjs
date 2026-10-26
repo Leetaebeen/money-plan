@@ -18,3 +18,10 @@ for (const removed of ["이전 월급 계산기", "오프라인 실행 준비", 
   assert.equal(bundles.includes(removed), false, `Retired feature bundled: ${removed}`);
 }
 console.log("Web build and offline retirement checks passed.");
+
+assert.match(html, /http-equiv="Content-Security-Policy"/);
+assert.match(html, /name="referrer" content="no-referrer"/);
+const policy = html.match(/http-equiv="Content-Security-Policy" content="([^"]+)"/)?.[1]?.replace(/&#39;/g, "'");
+assert.ok(policy);
+for (const directive of ["default-src 'none'", "script-src 'self'", "object-src 'none'", "base-uri 'none'", "form-action 'none'", "frame-src 'none'"]) assert.ok(policy.includes(directive));
+assert.doesNotMatch(policy, /unsafe-inline|unsafe-eval/);

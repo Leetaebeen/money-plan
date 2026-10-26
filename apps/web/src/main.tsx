@@ -25,7 +25,10 @@ if (!root) {
   throw new Error("앱을 표시할 루트 요소를 찾지 못했습니다.");
 }
 
-createRoot(root).render(
+// Pages cannot set frame-ancestors headers: never render personal data in a frame.
+if (window.top !== window.self) {
+  root.textContent = "보안을 위해 새 브라우저 탭에서 머니플랜을 직접 열어 주세요.";
+} else createRoot(root).render(
   <StrictMode>
     <LedgerApp />
   </StrictMode>,

@@ -1,6 +1,8 @@
 name: CI
 
 on:
+  schedule:
+    - cron: "37 0 * * 1"
   workflow_dispatch:
   pull_request:
   push:
@@ -21,13 +23,13 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -35,7 +37,11 @@ jobs:
       - name: Install dependencies
         run: npm ci --ignore-scripts --audit=false
 
+      - name: Audit dependency vulnerabilities
+        run: npm audit --audit-level=low
+
       - name: Validate commit messages
+        if: github.actor != 'dependabot[bot]'
         env:
           BEFORE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           AFTER_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -63,7 +69,7 @@ jobs:
         run: npm run check:web
 
   build-pages:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -74,12 +80,12 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -88,7 +94,7 @@ jobs:
         run: npm ci --ignore-scripts --audit=false
 
       - name: Configure GitHub Pages
-        uses: actions/configure-pages@v6
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6
 
       - name: Build for GitHub Pages
         run: npm run build:pages
@@ -97,12 +103,12 @@ jobs:
         run: npm run check:pages
 
       - name: Upload GitHub Pages artifact
-        uses: actions/upload-pages-artifact@v5
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
         with:
           path: apps/web/dist
 
   deploy-pages:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     needs: build-pages
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -116,4 +122,4 @@ jobs:
     steps:
       - name: Deploy GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v5
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5

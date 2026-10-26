@@ -23,7 +23,8 @@
     "test:engine": "node --test packages/finance-engine/tests/allocation.test.ts",
     "typecheck": "tsc --noEmit && npm run typecheck --workspace @money-plan/web",
     "security:identity": "node scripts/check-git-privacy.cjs",
-    "check:web": "node scripts/check-web-build.cjs"
+    "check:web": "node scripts/check-web-build.cjs",
+    "security:audit": "npm audit --audit-level=low"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
