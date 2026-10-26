@@ -46,6 +46,34 @@ test('push inspection catches private ancestors even when the newest commit is s
     assert.equal(incremental.status, 0);
     const malformed = spawnSync(process.execPath, [script], { cwd: directory, env, encoding: 'utf8', input: 'unexpected input\n' });
     assert.equal(malformed.status, 1);
+    // A synthetic token is assembled at runtime; no real credential is used.
+    const token = 'gh' + 'p_' + 'X'.repeat(32);
+    fs.writeFileSync(path.join(directory, 'example.txt'), token);
+    git(['add', 'example.txt']);
+    git(['-c', 'core.hooksPath=', '-c', 'commit.gpgSign=false', 'commit', '-m', 'feat. Synthetic secret']);
+    fs.unlinkSync(path.join(directory, 'example.txt'));
+    git(['add', '-u']);
+    git(['-c', 'core.hooksPath=', '-c', 'commit.gpgSign=false', 'commit', '-m', 'feat. Remove synthetic secret']);
+    const cleaned = git(['rev-parse', 'HEAD']);
+    const invoke = (from, to) => spawnSync(process.execPath, [script], { cwd: directory, env, encoding: 'utf8', input: 'refs/heads/main ' + to + ' refs/heads/main ' + from + '\n' });
+    const removedSecret = invoke(after, cleaned);
+    assert.equal(removedSecret.status, 1);
+    assert.ok(removedSecret.stderr.includes('github-token'));
+    assert.equal(removedSecret.stderr.includes(token), false);
+    assert.equal(invoke(cleaned, cleaned).status, 0);
+    git(['-c', 'core.hooksPath=', '-c', 'commit.gpgSign=false', 'commit', '--allow-empty', '-m', 'feat. ' + token]);
+    const messageSecret = invoke(cleaned, git(['rev-parse', 'HEAD']));
+    assert.equal(messageSecret.status, 1);
+    assert.ok(messageSecret.stderr.includes('github-token'));
+    assert.equal(messageSecret.stderr.includes(token), false);
+    fs.writeFileSync(path.join(directory, '.env'), 'EXAMPLE=placeholder');
+    git(['add', '.env']);
+    git(['-c', 'core.hooksPath=', '-c', 'commit.gpgSign=false', 'commit', '-m', 'feat. Forbidden file']);
+    const forbiddenHead = git(['rev-parse', 'HEAD']);
+    const forbidden = invoke(git(['rev-parse', 'HEAD~1']), forbiddenHead);
+    assert.equal(forbidden.status, 1);
+    assert.ok(forbidden.stderr.includes('environment-file'));
+
   } finally {
     const resolved = fs.realpathSync(directory);
     assert.equal(path.dirname(resolved), root);

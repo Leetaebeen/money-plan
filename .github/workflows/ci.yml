@@ -53,6 +53,12 @@ jobs:
           AFTER_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: node scripts/check-git-privacy.cjs --range "$BEFORE_SHA" "$AFTER_SHA"
 
+      - name: Check pushed history for secrets
+        env:
+          BEFORE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          AFTER_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: node scripts/check-history-secrets.cjs "$BEFORE_SHA" "$AFTER_SHA"
+
       - name: Check tracked files for secrets
         run: npm run security:check
 

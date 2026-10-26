@@ -165,49 +165,54 @@ function scanText(filePath, text) {
   return findings;
 }
 
-const stagedOnly = process.argv.includes('--staged');
-const files = selectedFiles(stagedOnly);
-const findings = [];
+function main() {
+  const stagedOnly = process.argv.includes('--staged');
+  const files = selectedFiles(stagedOnly);
+  const findings = [];
 
-for (const filePath of files) {
-  const forbiddenReason = forbiddenPathReason(filePath);
+  for (const filePath of files) {
+    const forbiddenReason = forbiddenPathReason(filePath);
 
-  if (forbiddenReason) {
-    findings.push({ filePath, line: null, rule: forbiddenReason });
-    continue;
+    if (forbiddenReason) {
+      findings.push({ filePath, line: null, rule: forbiddenReason });
+      continue;
+    }
+
+    const content = readSelectedFile(filePath, stagedOnly);
+
+    if (!content || isBinary(content)) {
+      continue;
+    }
+
+    if (content.length > MAX_TEXT_FILE_BYTES) {
+      findings.push({ filePath, line: null, rule: 'text-file-too-large-to-scan' });
+      continue;
+    }
+
+    findings.push(...scanText(filePath, content.toString('utf8')));
   }
 
-  const content = readSelectedFile(filePath, stagedOnly);
+  const uniqueFindings = Array.from(
+    new Map(
+      findings.map((finding) => [
+        `${finding.filePath}:${finding.line || 0}:${finding.rule}`,
+        finding,
+      ]),
+    ).values(),
+  );
 
-  if (!content || isBinary(content)) {
-    continue;
+  if (uniqueFindings.length > 0) {
+    console.error('비밀정보 또는 추적 금지 파일이 발견되어 검사를 중단합니다.');
+    uniqueFindings.forEach(({ filePath, line, rule }) => {
+      const location = line ? `${filePath}:${line}` : filePath;
+      console.error(`- ${location} [${rule}]`);
+    });
+    console.error('일치한 값 자체는 안전을 위해 출력하지 않았습니다.');
+    process.exit(1);
   }
 
-  if (content.length > MAX_TEXT_FILE_BYTES) {
-    findings.push({ filePath, line: null, rule: 'text-file-too-large-to-scan' });
-    continue;
-  }
+  console.log(`${stagedOnly ? '스테이징된' : '추적 중인'} 파일 ${files.length}개의 비밀정보 검사를 통과했습니다.`);
 
-  findings.push(...scanText(filePath, content.toString('utf8')));
 }
-
-const uniqueFindings = Array.from(
-  new Map(
-    findings.map((finding) => [
-      `${finding.filePath}:${finding.line || 0}:${finding.rule}`,
-      finding,
-    ]),
-  ).values(),
-);
-
-if (uniqueFindings.length > 0) {
-  console.error('비밀정보 또는 추적 금지 파일이 발견되어 검사를 중단합니다.');
-  uniqueFindings.forEach(({ filePath, line, rule }) => {
-    const location = line ? `${filePath}:${line}` : filePath;
-    console.error(`- ${location} [${rule}]`);
-  });
-  console.error('일치한 값 자체는 안전을 위해 출력하지 않았습니다.');
-  process.exit(1);
-}
-
-console.log(`${stagedOnly ? '스테이징된' : '추적 중인'} 파일 ${files.length}개의 비밀정보 검사를 통과했습니다.`);
+if (require.main === module) main();
+module.exports = { scanText, forbiddenPathReason, isBinary, MAX_TEXT_FILE_BYTES };
