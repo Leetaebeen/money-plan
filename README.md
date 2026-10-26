@@ -44,6 +44,9 @@ Git 작성자 이메일은 본인의 GitHub noreply 주소를 사용합니다.
 ## 배포
 
 `main` 변경은 CI 검증 후 GitHub Pages에 배포합니다.
+변경은 임시 브랜치에서 PR을 만들고 GitHub Actions의 필수 `verify` 검사를 통과한 뒤 병합합니다.
+`verify`는 일반 웹 빌드뿐 아니라 `/money-plan/` 배포 경로와 보안 정책도 검사합니다.
+최신 main 기준 검사가 필요하며 병합한 임시 브랜치는 자동 삭제합니다. 병합 후 로컬 main은 `git pull --ff-only`로 갱신합니다.
 
 - 사이트: https://leetaebeen.github.io/money-plan/
 - Pages Source: GitHub Actions
