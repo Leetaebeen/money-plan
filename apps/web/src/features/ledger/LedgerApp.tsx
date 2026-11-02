@@ -13,7 +13,6 @@ import { loadLedger, mutateLedger } from "./store";
 import { Accounts } from "./Accounts";
 import { Goals, GoalCard } from "./Goals";
 import { Transactions } from "./Transactions";
-import { BackupPanel } from "./BackupPanel";
 import { MonthlyPlan } from "./MonthlyPlan";
 import { PurchaseCheck } from "./PurchaseCheck";
 import { IncomeRunway } from "./IncomeRunway";
@@ -25,15 +24,13 @@ type Screen =
   | "plan"
   | "transactions"
   | "goals"
-  | "accounts"
-  | "backup";
+  | "accounts";
 const tabs: { id: Screen; label: string; symbol: string }[] = [
   { id: "home", label: "홈", symbol: "⌂" },
   { id: "plan", label: "월급", symbol: "₩" },
   { id: "transactions", label: "거래", symbol: "↔" },
   { id: "goals", label: "목표", symbol: "◎" },
   { id: "accounts", label: "자산", symbol: "▥" },
-  { id: "backup", label: "백업", symbol: "↓" },
 ];
 export function LedgerApp() {
   const [refreshVersion, setRefreshVersion] = useState(0);
@@ -371,16 +368,8 @@ export function LedgerApp() {
                     </article>
                     <article className="ledger-panel">
                       <span className="ledger-eyebrow">데이터 보관</span>
-                      <h3>휴대폰을 바꿔도 이어서</h3>
-                      <p>
-                        브라우저 데이터를 지우기 전에 암호화 백업을 저장하세요.
-                      </p>
-                      <button
-                        className="ledger-text-btn"
-                        onClick={() => navigate("backup")}
-                      >
-                        백업하기 →
-                      </button>
+                      <h3>지금 사용하는 브라우저에 저장해요</h3>
+                      <p>기록은 이 기기의 브라우저에 저장됩니다. 사이트 데이터를 삭제하면 기록도 지워집니다.</p>
                     </article>
                   </section>
                   <p className="ledger-note">
@@ -435,9 +424,6 @@ export function LedgerApp() {
                   change={change}
                   run={run}
                 />
-              )}
-              {screen === "backup" && (
-                <BackupPanel snapshot={snapshot} busy={busy} run={run} />
               )}
             </Fragment>
           )}

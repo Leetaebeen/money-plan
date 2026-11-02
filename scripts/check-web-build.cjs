@@ -14,7 +14,7 @@ assert.match(worker, /registration\.unregister/);
 assert.doesNotMatch(worker, /addEventListener\(["']fetch|precacheAndRoute/);
 const scripts = fs.readdirSync(path.join(out, "assets")).filter(name => name.endsWith(".js"));
 const bundles = scripts.map(name => fs.readFileSync(path.join(out, "assets", name), "utf8")).join("\n");
-for (const removed of ["이전 월급 계산기", "오프라인 실행 준비", "financial-products.json", "serviceWorker.register("]) {
+for (const removed of ["이전 월급 계산기", "오프라인 실행 준비", "financial-products.json", "serviceWorker.register(", "암호화 백업 저장", "복원 내용 확인", "백업하기 →", "money-plan-ledger-encrypted-v1"]) {
   assert.equal(bundles.includes(removed), false, `Retired feature bundled: ${removed}`);
 }
 console.log("Web build and offline retirement checks passed.");
