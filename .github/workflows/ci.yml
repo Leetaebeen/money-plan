@@ -74,6 +74,9 @@ jobs:
       - name: Verify web assets and retired features
         run: npm run check:web
 
+      - name: Verify prepared Cloudflare headers and paths
+        run: npm run check:cloudflare
+
       - name: Build Pages before merge
         run: npm run build:pages
 
