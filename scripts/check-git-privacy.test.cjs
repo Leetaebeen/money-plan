@@ -93,3 +93,16 @@ test('push inspection catches private ancestors even when the newest commit is s
     removeDirectory(resolved);
   }
 });
+
+test('batched Git blobs use byte boundaries and reject corrupted responses without exposing content', () => {
+  const { parseBatch } = require('./check-history-secrets.cjs');
+  const oidA = 'a'.repeat(40), oidB = 'b'.repeat(40);
+  const value = Buffer.from('한글\n\0binary\n');
+  const expected = [{ oid: oidA, size: value.length }, { oid: oidB, size: 0 }];
+  const output = Buffer.concat([Buffer.from(`${oidA} blob ${value.length}\n`), value, Buffer.from(`\n${oidB} blob 0\n\n`)]);
+  assert.deepEqual(parseBatch(output, expected), [value, Buffer.alloc(0)]);
+  for (const broken of [output.subarray(0, -1), Buffer.concat([output, Buffer.from('extra')]), Buffer.from('not-an-object\n')]) {
+    assert.throws(() => parseBatch(broken, expected), error => !error.message.includes('binary') && !error.message.includes('not-an-object'));
+  }
+  assert.throws(() => parseBatch(output, [{ oid: oidB, size: value.length }, expected[1]]));
+});
