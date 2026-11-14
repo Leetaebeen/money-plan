@@ -27,7 +27,7 @@
     "security:audit": "npm audit --audit-level=low"
   },
   "devDependencies": {
-    "@types/node": "^24.10.1",
+    "@types/node": "^26.6.6",
     "fake-indexeddb": "^6.2.7",
     "typescript": "^5.9.3"
   }
